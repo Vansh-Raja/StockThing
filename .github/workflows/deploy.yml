@@ -176,8 +176,9 @@ jobs:
           
           if [ "\$USE_PM2" = true ] && [ -n "\$PM2_CMD" ]; then
             echo "Starting Next.js app with PM2 on port \$APP_PORT..."
-            # Next.js reads PORT from environment variable
-            PORT=\$APP_PORT \$PM2_CMD start bun --name "StockThing" -- run start
+            # Next.js reads PORT and HOSTNAME from environment variables
+            # HOSTNAME=0.0.0.0 makes it accessible from outside
+            HOSTNAME=0.0.0.0 PORT=\$APP_PORT \$PM2_CMD start bun --name "StockThing" -- run start
             \$PM2_CMD save || true
             
             # Setup PM2 to start on boot
@@ -218,9 +219,11 @@ jobs:
             lsof -ti:\$APP_PORT | xargs kill -9 2>/dev/null || true
             sleep 1
             
-            # Start with nohup (export PORT so Next.js picks it up)
+            # Start with nohup (export PORT and HOSTNAME so Next.js picks it up)
+            # HOSTNAME=0.0.0.0 makes it accessible from outside
             export PORT=\$APP_PORT
-            nohup env PORT=\$APP_PORT bun run start > logs/app.log 2>&1 &
+            export HOSTNAME=0.0.0.0
+            nohup env HOSTNAME=0.0.0.0 PORT=\$APP_PORT bun run start > logs/app.log 2>&1 &
             APP_PID=\$!
             echo \$APP_PID > logs/app.pid
             echo "Started with PID: \$APP_PID on port: \$APP_PORT"
@@ -240,7 +243,7 @@ jobs:
                 APP_DIR=\$(pwd)
                 BUN_PATH=\$(command -v bun)
                 
-                printf '[Unit]\nDescription=Stock Portfolio Tracker\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory=%s\nEnvironment="PORT=%s"\nExecStart=%s run start\nRestart=always\nRestartSec=10\nStandardOutput=append:%s/logs/app.log\nStandardError=append:%s/logs/app.log\n\n[Install]\nWantedBy=default.target\n' "\$APP_DIR" "\$APP_PORT" "\$BUN_PATH" "\$APP_DIR" "\$APP_DIR" > \$HOME/.config/systemd/user/stockthing.service
+                printf '[Unit]\nDescription=Stock Portfolio Tracker\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory=%s\nEnvironment="PORT=%s"\nEnvironment="HOSTNAME=0.0.0.0"\nExecStart=%s run start\nRestart=always\nRestartSec=10\nStandardOutput=append:%s/logs/app.log\nStandardError=append:%s/logs/app.log\n\n[Install]\nWantedBy=default.target\n' "\$APP_DIR" "\$APP_PORT" "\$BUN_PATH" "\$APP_DIR" "\$APP_DIR" > \$HOME/.config/systemd/user/stockthing.service
                 
                 # Reload systemd and enable service
                 systemctl --user daemon-reload 2>/dev/null || true
@@ -257,14 +260,78 @@ jobs:
           echo "📁 Working directory: \$(pwd)"
           echo "🌐 App running on: http://0.0.0.0:\$APP_PORT"
           
-          # Test if the server is responding
-          echo "🔍 Testing server response..."
-          sleep 2
-          if curl -s -o /dev/null -w "%{http_code}" http://localhost:\$APP_PORT | grep -q "200\|404\|500"; then
-              echo "✅ Server is responding to requests"
+          # Comprehensive diagnostics
+          echo ""
+          echo "🔍 Running diagnostics..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          
+          # Check if process is running
+          echo "1. Checking if process is running..."
+          if [ "\$USE_PM2" = true ] && [ -n "\$PM2_CMD" ]; then
+            \$PM2_CMD list | grep StockThing || echo "❌ PM2 process not found"
           else
-              echo "⚠️ Server may not be responding yet (this is sometimes normal)"
+            if [ -f logs/app.pid ]; then
+              APP_PID=\$(cat logs/app.pid)
+              if ps -p \$APP_PID > /dev/null 2>&1; then
+                echo "✅ Process running (PID: \$APP_PID)"
+              else
+                echo "❌ Process not running (PID file exists but process is dead)"
+              fi
+            else
+              echo "⚠️ PID file not found"
+            fi
           fi
+          
+          # Check what's listening on the port
+          echo ""
+          echo "2. Checking what's listening on port \$APP_PORT..."
+          if command -v ss > /dev/null 2>&1; then
+            ss -tlnp | grep ":\$APP_PORT " || echo "❌ Nothing listening on port \$APP_PORT"
+          elif command -v netstat > /dev/null 2>&1; then
+            netstat -tlnp | grep ":\$APP_PORT " || echo "❌ Nothing listening on port \$APP_PORT"
+          else
+            echo "⚠️ ss/netstat not available"
+          fi
+          
+          # Check firewall status
+          echo ""
+          echo "3. Checking firewall status..."
+          if command -v ufw > /dev/null 2>&1; then
+            ufw status | grep "\$APP_PORT" || echo "⚠️ Port \$APP_PORT not found in ufw rules"
+          else
+            echo "⚠️ ufw not available"
+          fi
+          
+          # Test local connection
+          echo ""
+          echo "4. Testing local connection..."
+          sleep 2
+          HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" http://localhost:\$APP_PORT 2>&1 || echo "000")
+          if [ "\$HTTP_CODE" = "200" ] || [ "\$HTTP_CODE" = "404" ] || [ "\$HTTP_CODE" = "500" ]; then
+            echo "✅ Server responding locally (HTTP \$HTTP_CODE)"
+          else
+            echo "❌ Server not responding locally (HTTP \$HTTP_CODE)"
+            echo "   Last 30 lines of logs:"
+            tail -30 logs/app.log 2>/dev/null || echo "   No log file found"
+          fi
+          
+          # Check if binding to 0.0.0.0
+          echo ""
+          echo "5. Checking network binding..."
+          if command -v ss > /dev/null 2>&1; then
+            BINDING=\$(ss -tlnp | grep ":\$APP_PORT " | awk '{print \$4}')
+            if echo "\$BINDING" | grep -q "0.0.0.0"; then
+              echo "✅ Listening on 0.0.0.0:\$APP_PORT (accessible externally)"
+            elif echo "\$BINDING" | grep -q "127.0.0.1"; then
+              echo "❌ Only listening on 127.0.0.1:\$APP_PORT (NOT accessible externally)"
+              echo "   Set HOSTNAME=0.0.0.0 environment variable"
+            else
+              echo "⚠️ Binding: \$BINDING"
+            fi
+          fi
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
           
           EOF
           
