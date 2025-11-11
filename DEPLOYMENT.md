@@ -23,6 +23,20 @@ Add the following secrets to your GitHub repository (Settings → Secrets and va
    - Port number for the Next.js app (defaults to 3000 if not set)
    - Example: `3000`
 
+5. **SETUP_NGINX** (Optional)
+   - Set to `true` or `yes` to automatically set up Nginx reverse proxy
+   - Defaults to `false` if not set
+   - Example: `true`
+
+6. **NGINX_DOMAIN** (Optional, defaults to `stockthing.vanshraja.me`)
+   - Domain name/subdomain for Nginx configuration
+   - Example: `stockthing.vanshraja.me`
+
+7. **NGINX_PORT** (Optional, defaults to `8080`)
+   - Custom port for Nginx to listen on (useful for multiple apps on same server)
+   - Defaults to `8080` if not set
+   - Example: `8080`, `8081`, `9000`
+
 ## Server Setup
 
 ### Prerequisites
@@ -84,9 +98,70 @@ pm2 startup
    - Checkout code
    - Install Bun
    - Install dependencies
-   - Build Next.js app
+   - Build Next.js app (for CI validation)
    - Deploy to server via SSH
-   - Start app with PM2
+   - Install dependencies on server
+   - Build Next.js app on server
+   - Start app with PM2 or nohup
+   - Optionally set up Nginx reverse proxy (if SETUP_NGINX=true)
+
+## Nginx Reverse Proxy (Optional)
+
+The deployment script can automatically set up Nginx as a reverse proxy:
+
+### Benefits:
+- Access app via custom domain and port (e.g., `stockthing.vanshraja.me:8080`)
+- Better security and performance
+- Support for multiple apps on same server (each on different port)
+- Easier SSL/TLS setup later
+- Health check endpoint at `/health`
+
+### Setup:
+1. **DNS Configuration** (Required):
+   - Point your subdomain `stockthing.vanshraja.me` to your server's IP address
+   - Add an A record: `stockthing` → `your-server-ip`
+
+2. **GitHub Secrets**:
+   - `SETUP_NGINX`: Set to `true` or `yes`
+   - `NGINX_DOMAIN`: Your subdomain (defaults to `stockthing.vanshraja.me`)
+   - `NGINX_PORT`: Custom port (defaults to `8080`)
+
+3. The script will automatically:
+   - Install Nginx if not present
+   - Create configuration file for your subdomain
+   - Enable the site
+   - Test and reload Nginx
+   - Configure firewall for the custom port
+
+### Access:
+- Via domain: `http://stockthing.vanshraja.me:8080`
+- Via IP: `http://your-server-ip:8080`
+- Health check: `http://stockthing.vanshraja.me:8080/health`
+
+### Multiple Apps on Same Server:
+Each app should use a different `NGINX_PORT`:
+- App 1: `NGINX_PORT=8080`, `NGINX_DOMAIN=app1.vanshraja.me`
+- App 2: `NGINX_PORT=8081`, `NGINX_DOMAIN=app2.vanshraja.me`
+- App 3: `NGINX_PORT=8082`, `NGINX_DOMAIN=app3.vanshraja.me`
+
+### Manual Nginx Management:
+```bash
+# Check Nginx status
+sudo systemctl status nginx
+
+# View Nginx logs
+sudo tail -f /var/log/nginx/access.log
+sudo tail -f /var/log/nginx/error.log
+
+# Test configuration
+sudo nginx -t
+
+# Reload Nginx
+sudo systemctl reload nginx
+
+# Restart Nginx
+sudo systemctl restart nginx
+```
 
 ## Auto-Start on Boot
 

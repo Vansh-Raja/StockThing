@@ -35,6 +35,9 @@ jobs:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           PORT: ${{ secrets.PORT }}
+          NGINX_DOMAIN: ${{ secrets.NGINX_DOMAIN }}
+          NGINX_PORT: ${{ secrets.NGINX_PORT }}
+          SETUP_NGINX: ${{ secrets.SETUP_NGINX }}
         run: |
           echo "$SSH_PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
@@ -57,15 +60,21 @@ jobs:
             plan.md AGENTS.md diagnose.sh .github/ ${SERVER_USER}@${SERVER_HOST}:/home/${SERVER_USER}/Code/StockThing/
           
           # Deploy and start Next.js app
-          # Pass PORT environment variable explicitly to SSH session
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ${SERVER_USER}@${SERVER_HOST} "PORT=${PORT:-3000} bash -s" << EOF
+          # Pass environment variables explicitly to SSH session
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ${SERVER_USER}@${SERVER_HOST} "PORT=${PORT:-3000} SETUP_NGINX=${SETUP_NGINX:-false} NGINX_DOMAIN=${NGINX_DOMAIN:-stockthing.vanshraja.me} NGINX_PORT=${NGINX_PORT:-8080} bash -s" << EOF
           
           # Navigate to app directory
           cd /home/${SERVER_USER}/Code/StockThing/frontend
           
-          # Export PORT for this session (use provided PORT or default to 3000)
+          # Export environment variables for this session
           export PORT=\${PORT:-3000}
+          export SETUP_NGINX=\${SETUP_NGINX:-false}
+          export NGINX_DOMAIN=\${NGINX_DOMAIN:-stockthing.vanshraja.me}
+          export NGINX_PORT=\${NGINX_PORT:-8080}
           echo "🔧 Using PORT: \$PORT"
+          echo "🔧 Nginx setup: \$SETUP_NGINX"
+          echo "🔧 Nginx domain: \$NGINX_DOMAIN"
+          echo "🔧 Nginx port: \$NGINX_PORT"
           
           # Install Bun if not already installed (use specific version for consistency)
           if ! command -v bun &> /dev/null; then
@@ -345,6 +354,63 @@ jobs:
           
           # Make diagnose.sh executable
           chmod +x /home/${SERVER_USER}/Code/StockThing/diagnose.sh 2>/dev/null || true
+          
+          # Setup Nginx reverse proxy (if enabled)
+          if [ "\$SETUP_NGINX" = "true" ] || [ "\$SETUP_NGINX" = "yes" ]; then
+            echo ""
+            echo "🔧 Setting up Nginx reverse proxy..."
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            
+            # Install Nginx if not already installed
+            if ! command -v nginx > /dev/null 2>&1; then
+              echo "Installing Nginx..."
+              sudo apt-get update -qq
+              sudo apt-get install -y nginx
+            else
+              echo "✅ Nginx is already installed"
+            fi
+            
+            # Get domain or use server IP
+            NGINX_CONFIG_NAME="stockthing"
+            
+            # Create Nginx configuration
+            echo "Creating Nginx configuration for \$NGINX_DOMAIN on port \$NGINX_PORT..."
+            printf 'server {\n    listen %s;\n    server_name %s;\n    \n    # Increase timeouts for Next.js\n    proxy_connect_timeout 60s;\n    proxy_send_timeout 60s;\n    proxy_read_timeout 60s;\n    \n    location / {\n        proxy_pass http://127.0.0.1:%s;\n        proxy_http_version 1.1;\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection '\''upgrade'\'';\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_cache_bypass $http_upgrade;\n        \n        # WebSocket support\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection "upgrade";\n    }\n    \n    # Health check endpoint\n    location /health {\n        access_log off;\n        return 200 "healthy\\n";\n        add_header Content-Type text/plain;\n    }\n}\n' "\$NGINX_PORT" "\$NGINX_DOMAIN" "\$APP_PORT" | sudo tee /etc/nginx/sites-available/\$NGINX_CONFIG_NAME > /dev/null
+            
+            # Enable the site
+            echo "Enabling Nginx site..."
+            sudo ln -sf /etc/nginx/sites-available/\$NGINX_CONFIG_NAME /etc/nginx/sites-enabled/\$NGINX_CONFIG_NAME
+            
+            # Remove default site if it exists
+            sudo rm -f /etc/nginx/sites-enabled/default
+            
+            # Test Nginx configuration
+            echo "Testing Nginx configuration..."
+            if sudo nginx -t; then
+              echo "✅ Nginx configuration is valid"
+              
+              # Configure firewall for custom Nginx port
+              if command -v ufw > /dev/null 2>&1; then
+                echo "Configuring firewall for port \$NGINX_PORT..."
+                sudo ufw allow \$NGINX_PORT/tcp || true
+              fi
+              
+              # Reload Nginx
+              sudo systemctl reload nginx || sudo systemctl restart nginx
+              sudo systemctl enable nginx
+              echo "✅ Nginx reverse proxy configured and started"
+              echo "   App accessible at: http://\$NGINX_DOMAIN:\$NGINX_PORT"
+              echo "   Or via IP: http://\$(hostname -I | awk '{print \$1}'):\$NGINX_PORT"
+            else
+              echo "❌ Nginx configuration test failed"
+              echo "   Nginx config errors:"
+              sudo nginx -t 2>&1 || true
+            fi
+          else
+            echo ""
+            echo "ℹ️  Nginx reverse proxy setup skipped (set SETUP_NGINX=true to enable)"
+            echo "   To enable: Add SETUP_NGINX=true and NGINX_DOMAIN=stockthing.vanshraja.me to GitHub secrets"
+          fi
           
           EOF
           
