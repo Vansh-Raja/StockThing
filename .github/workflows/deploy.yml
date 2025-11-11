@@ -240,24 +240,7 @@ jobs:
                 APP_DIR=\$(pwd)
                 BUN_PATH=\$(command -v bun)
                 
-                cat > \$HOME/.config/systemd/user/stockthing.service << SERVICE_EOF
-[Unit]
-Description=Stock Portfolio Tracker
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=\$APP_DIR
-Environment="PORT=\$APP_PORT"
-ExecStart=\$BUN_PATH run start
-Restart=always
-RestartSec=10
-StandardOutput=append:\$APP_DIR/logs/app.log
-StandardError=append:\$APP_DIR/logs/app.log
-
-[Install]
-WantedBy=default.target
-SERVICE_EOF
+                printf '[Unit]\nDescription=Stock Portfolio Tracker\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory=%s\nEnvironment="PORT=%s"\nExecStart=%s run start\nRestart=always\nRestartSec=10\nStandardOutput=append:%s/logs/app.log\nStandardError=append:%s/logs/app.log\n\n[Install]\nWantedBy=default.target\n' "\$APP_DIR" "\$APP_PORT" "\$BUN_PATH" "\$APP_DIR" "\$APP_DIR" > \$HOME/.config/systemd/user/stockthing.service
                 
                 # Reload systemd and enable service
                 systemctl --user daemon-reload 2>/dev/null || true
