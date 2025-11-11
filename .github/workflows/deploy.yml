@@ -86,28 +86,64 @@ jobs:
             echo "✅ Using bun.lock for exact version matching"
           fi
           
+          # Check if Node.js/npm is available (required for PM2)
+          if ! command -v npm &> /dev/null; then
+            echo "❌ npm not found. Installing Node.js..."
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+          fi
+          echo "✅ Node.js version: \$(node --version)"
+          echo "✅ npm version: \$(npm --version)"
+          
           # Install PM2 if not already installed
           echo "Checking for PM2..."
-          if ! command -v pm2 &> /dev/null; then
+          PM2_CMD=""
+          
+          # Try to find PM2 in common locations
+          if command -v pm2 &> /dev/null; then
+            PM2_CMD=\$(command -v pm2)
+            echo "✅ PM2 found in PATH: \$PM2_CMD"
+          elif [ -f "/usr/local/bin/pm2" ]; then
+            PM2_CMD="/usr/local/bin/pm2"
+            echo "✅ PM2 found at: \$PM2_CMD"
+          elif [ -f "\$(npm config get prefix)/bin/pm2" ]; then
+            PM2_CMD="\$(npm config get prefix)/bin/pm2"
+            echo "✅ PM2 found at: \$PM2_CMD"
+          else
             echo "PM2 not found, installing globally..."
             npm install -g pm2
-            # Add npm global bin to PATH if not already there
-            export PATH="\$PATH:\$(npm config get prefix)/bin"
-          else
-            echo "✅ PM2 found: \$(pm2 --version)"
+            
+            # Add npm global bin to PATH
+            NPM_PREFIX=\$(npm config get prefix)
+            export PATH="\$PATH:\$NPM_PREFIX/bin"
+            
+            # Try to find PM2 again after installation
+            if command -v pm2 &> /dev/null; then
+              PM2_CMD=\$(command -v pm2)
+              echo "✅ PM2 installed and found at: \$PM2_CMD"
+            elif [ -f "\$NPM_PREFIX/bin/pm2" ]; then
+              PM2_CMD="\$NPM_PREFIX/bin/pm2"
+              echo "✅ PM2 installed and found at: \$PM2_CMD"
+            else
+              echo "❌ PM2 installation failed. Attempting to locate..."
+              find /usr -name pm2 2>/dev/null | head -1 || find /home -name pm2 2>/dev/null | head -1 || echo "PM2 not found anywhere"
+              exit 1
+            fi
           fi
           
-          # Ensure PM2 is in PATH (for npm global installs)
-          export PATH="\$PATH:\$(npm config get prefix)/bin"
-          
-          # Verify PM2 is accessible
-          PM2_CMD=\$(command -v pm2 || echo "/usr/local/bin/pm2" || echo "\$(npm config get prefix)/bin/pm2")
-          if [ ! -f "\$PM2_CMD" ]; then
-            echo "❌ PM2 not found. Attempting to locate..."
-            which pm2 || find /usr -name pm2 2>/dev/null | head -1 || echo "PM2 installation failed"
+          # Verify PM2 is executable
+          if [ ! -x "\$PM2_CMD" ]; then
+            echo "❌ PM2 found but not executable: \$PM2_CMD"
             exit 1
           fi
-          echo "✅ Using PM2 at: \$PM2_CMD"
+          
+          # Test PM2
+          echo "Testing PM2..."
+          \$PM2_CMD --version || {
+            echo "❌ PM2 test failed"
+            exit 1
+          }
+          echo "✅ PM2 is working: \$(\$PM2_CMD --version)"
           
           # Stop any existing PM2 processes
           echo "Stopping existing processes..."
