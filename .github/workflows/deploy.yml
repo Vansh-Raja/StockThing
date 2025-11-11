@@ -180,6 +180,17 @@ jobs:
             PORT=\$APP_PORT \$PM2_CMD start bun --name "StockThing" -- run start
             \$PM2_CMD save || true
             
+            # Setup PM2 to start on boot
+            echo "Setting up PM2 to start on boot..."
+            # Try system-level startup (requires sudo)
+            sudo \$PM2_CMD startup 2>/dev/null || {
+              # Fallback: Try user-level startup
+              \$PM2_CMD startup 2>/dev/null || {
+                echo "⚠️ PM2 startup command failed, will create systemd service manually"
+                USE_PM2=false
+              }
+            }
+            
             sleep 5
             
             # Verify PM2 process is running
@@ -195,6 +206,10 @@ jobs:
           # Fallback to nohup if PM2 failed or not available
           if [ "\$USE_PM2" = false ]; then
             echo "Starting Next.js app with nohup (simple background process)..."
+            
+            # Stop any existing systemd service
+            systemctl --user stop stockthing.service 2>/dev/null || true
+            systemctl --user disable stockthing.service 2>/dev/null || true
             
             # Create logs directory
             mkdir -p logs
@@ -217,6 +232,34 @@ jobs:
                 echo "✅ Stock Portfolio Tracker deployed successfully with nohup!"
                 echo "📋 Process PID: \$APP_PID"
                 echo "📁 Logs: logs/app.log"
+                
+                # Create systemd user service for persistence across reboots
+                echo "Creating systemd service for auto-start on boot..."
+                mkdir -p \$HOME/.config/systemd/user
+                
+                cat > \$HOME/.config/systemd/user/stockthing.service << SERVICE_EOF
+[Unit]
+Description=Stock Portfolio Tracker
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=\$(pwd)
+Environment="PORT=\$APP_PORT"
+ExecStart=\$(command -v bun) run start
+Restart=always
+RestartSec=10
+StandardOutput=append:\$(pwd)/logs/app.log
+StandardError=append:\$(pwd)/logs/app.log
+
+[Install]
+WantedBy=default.target
+SERVICE_EOF
+                
+                # Reload systemd and enable service
+                systemctl --user daemon-reload 2>/dev/null || true
+                systemctl --user enable stockthing.service 2>/dev/null || true
+                echo "✅ Systemd service created for auto-start on boot"
             else
                 echo "❌ Failed to start application"
                 echo "📋 Last 20 lines of log:"

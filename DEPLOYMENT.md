@@ -88,6 +88,15 @@ pm2 startup
    - Deploy to server via SSH
    - Start app with PM2
 
+## Auto-Start on Boot
+
+The app is configured to automatically start on system reboot:
+
+- **PM2**: Uses `pm2 startup` to create a system service
+- **nohup fallback**: Creates a systemd user service (`~/.config/systemd/user/stockthing.service`)
+
+Both methods ensure the app restarts automatically after server reboots.
+
 ## Monitoring
 
 ### If using PM2:
@@ -96,11 +105,12 @@ pm2 startup
 - Restart: `pm2 restart StockThing` or `~/.local/bin/pm2 restart StockThing`
 - Stop: `pm2 stop StockThing` or `~/.local/bin/pm2 stop StockThing`
 
-### If using nohup:
-- View logs: `tail -f logs/app.log`
-- Check status: `ps -p $(cat logs/app.pid)` or `lsof -i:3000`
-- Restart: `kill $(cat logs/app.pid)` then restart manually
-- Stop: `kill $(cat logs/app.pid)` or `pkill -f "bun.*run start"`
+### If using nohup/systemd:
+- View logs: `tail -f logs/app.log` or `journalctl --user -u stockthing -f`
+- Check status: `systemctl --user status stockthing` or `ps -p $(cat logs/app.pid)`
+- Restart: `systemctl --user restart stockthing`
+- Stop: `systemctl --user stop stockthing`
+- Enable/disable auto-start: `systemctl --user enable stockthing` / `systemctl --user disable stockthing`
 
 ## Troubleshooting
 
