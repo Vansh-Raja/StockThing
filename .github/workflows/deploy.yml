@@ -86,27 +86,50 @@ jobs:
             echo "✅ Using bun.lock for exact version matching"
           fi
           
+          # Install PM2 if not already installed
+          echo "Checking for PM2..."
+          if ! command -v pm2 &> /dev/null; then
+            echo "PM2 not found, installing globally..."
+            npm install -g pm2
+            # Add npm global bin to PATH if not already there
+            export PATH="\$PATH:\$(npm config get prefix)/bin"
+          else
+            echo "✅ PM2 found: \$(pm2 --version)"
+          fi
+          
+          # Ensure PM2 is in PATH (for npm global installs)
+          export PATH="\$PATH:\$(npm config get prefix)/bin"
+          
+          # Verify PM2 is accessible
+          PM2_CMD=\$(command -v pm2 || echo "/usr/local/bin/pm2" || echo "\$(npm config get prefix)/bin/pm2")
+          if [ ! -f "\$PM2_CMD" ]; then
+            echo "❌ PM2 not found. Attempting to locate..."
+            which pm2 || find /usr -name pm2 2>/dev/null | head -1 || echo "PM2 installation failed"
+            exit 1
+          fi
+          echo "✅ Using PM2 at: \$PM2_CMD"
+          
           # Stop any existing PM2 processes
           echo "Stopping existing processes..."
-          pm2 stop StockThing || true
-          pm2 delete StockThing || true
+          \$PM2_CMD stop StockThing || true
+          \$PM2_CMD delete StockThing || true
           sleep 2
           
           # Start Next.js app with PM2
           echo "Starting Next.js app with PM2..."
-          PORT=\${PORT:-3000} pm2 start bun --name "StockThing" -- run start
+          PORT=\${PORT:-3000} \$PM2_CMD start bun --name "StockThing" -- run start
           
           # Save PM2 configuration
-          pm2 save
+          \$PM2_CMD save
           
           # Give it a moment to start
           sleep 5
           
           # Verify PM2 process is running
-          if pm2 list | grep -q "StockThing.*online"; then
+          if \$PM2_CMD list | grep -q "StockThing.*online"; then
               echo "✅ Stock Portfolio Tracker deployed successfully!"
               echo "📋 Process details:"
-              pm2 list | grep StockThing
+              \$PM2_CMD list | grep StockThing
               echo "📁 Working directory: \$(pwd)"
               echo "🌐 App running on: http://0.0.0.0:\${PORT:-3000}"
               
@@ -120,7 +143,7 @@ jobs:
           else
               echo "❌ Failed to start Stock Portfolio Tracker"
               echo "📋 PM2 logs:"
-              pm2 logs StockThing --lines 20 --nostream || echo "No PM2 logs found"
+              \$PM2_CMD logs StockThing --lines 20 --nostream || echo "No PM2 logs found"
               exit 1
           fi
           

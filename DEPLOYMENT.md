@@ -31,9 +31,9 @@ Add the following secrets to your GitHub repository (Settings → Secrets and va
    - The deployment script will install the latest version
    - For version consistency, ensure the same Bun version is used in CI and production
 2. **PM2** - Process manager for Node.js/Bun apps
-   ```bash
-   npm install -g pm2
-   ```
+   - Will be automatically installed by the deployment script if not found
+   - Can be manually installed with: `npm install -g pm2`
+   - The script will ensure PM2 is in PATH before use
 
 ### Version Management
 
