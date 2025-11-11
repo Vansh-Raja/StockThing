@@ -105,92 +105,126 @@ jobs:
           echo "✅ Node.js version: \$(node --version 2>/dev/null || echo 'not found')"
           echo "✅ npm version: \$(npm --version)"
           
-          # Install PM2 if not already installed
-          echo "Checking for PM2..."
+          # Try to use PM2, fallback to nohup if PM2 fails
+          USE_PM2=false
           PM2_CMD=""
           
           # Try to find PM2 in common locations
           if command -v pm2 &> /dev/null; then
             PM2_CMD=\$(command -v pm2)
             echo "✅ PM2 found in PATH: \$PM2_CMD"
+            USE_PM2=true
           elif [ -f "/usr/local/bin/pm2" ]; then
             PM2_CMD="/usr/local/bin/pm2"
             echo "✅ PM2 found at: \$PM2_CMD"
-          elif [ -f "\$(npm config get prefix)/bin/pm2" ]; then
-            PM2_CMD="\$(npm config get prefix)/bin/pm2"
+            USE_PM2=true
+          elif [ -f "\$HOME/.local/bin/pm2" ]; then
+            PM2_CMD="\$HOME/.local/bin/pm2"
             echo "✅ PM2 found at: \$PM2_CMD"
+            USE_PM2=true
           else
-            echo "PM2 not found, installing globally..."
-            npm install -g pm2
+            echo "PM2 not found, attempting to install to user directory..."
+            # Install PM2 to user directory (no sudo needed)
+            mkdir -p \$HOME/.local/bin
+            npm install -g pm2 --prefix \$HOME/.local || {
+              echo "⚠️ PM2 installation failed, will use nohup instead"
+              USE_PM2=false
+            }
             
-            # Add npm global bin to PATH
-            NPM_PREFIX=\$(npm config get prefix)
-            export PATH="\$PATH:\$NPM_PREFIX/bin"
-            
-            # Try to find PM2 again after installation
-            if command -v pm2 &> /dev/null; then
-              PM2_CMD=\$(command -v pm2)
-              echo "✅ PM2 installed and found at: \$PM2_CMD"
-            elif [ -f "\$NPM_PREFIX/bin/pm2" ]; then
-              PM2_CMD="\$NPM_PREFIX/bin/pm2"
-              echo "✅ PM2 installed and found at: \$PM2_CMD"
-            else
-              echo "❌ PM2 installation failed. Attempting to locate..."
-              find /usr -name pm2 2>/dev/null | head -1 || find /home -name pm2 2>/dev/null | head -1 || echo "PM2 not found anywhere"
-              exit 1
+            if [ -f "\$HOME/.local/bin/pm2" ]; then
+              PM2_CMD="\$HOME/.local/bin/pm2"
+              export PATH="\$PATH:\$HOME/.local/bin"
+              echo "✅ PM2 installed to user directory: \$PM2_CMD"
+              USE_PM2=true
             fi
           fi
           
-          # Verify PM2 is executable
-          if [ ! -x "\$PM2_CMD" ]; then
-            echo "❌ PM2 found but not executable: \$PM2_CMD"
-            exit 1
+          # Verify PM2 if found
+          if [ "\$USE_PM2" = true ] && [ -n "\$PM2_CMD" ]; then
+            if [ ! -x "\$PM2_CMD" ]; then
+              echo "⚠️ PM2 found but not executable, falling back to nohup"
+              USE_PM2=false
+            else
+              # Test PM2
+              \$PM2_CMD --version > /dev/null 2>&1 || {
+                echo "⚠️ PM2 test failed, falling back to nohup"
+                USE_PM2=false
+              }
+            fi
           fi
           
-          # Test PM2
-          echo "Testing PM2..."
-          \$PM2_CMD --version || {
-            echo "❌ PM2 test failed"
-            exit 1
-          }
-          echo "✅ PM2 is working: \$(\$PM2_CMD --version)"
-          
-          # Stop any existing PM2 processes
+          # Stop any existing processes
           echo "Stopping existing processes..."
-          \$PM2_CMD stop StockThing || true
-          \$PM2_CMD delete StockThing || true
+          if [ "\$USE_PM2" = true ] && [ -n "\$PM2_CMD" ]; then
+            \$PM2_CMD stop StockThing || true
+            \$PM2_CMD delete StockThing || true
+          else
+            # Kill existing nohup processes
+            pkill -f "bun.*run start" || true
+            pkill -f "next start" || true
+          fi
           sleep 2
           
-          # Start Next.js app with PM2
-          echo "Starting Next.js app with PM2..."
-          PORT=\${PORT:-3000} \$PM2_CMD start bun --name "StockThing" -- run start
+          # Start Next.js app
+          APP_PORT=\${PORT:-3000}
+          if [ "\$USE_PM2" = true ] && [ -n "\$PM2_CMD" ]; then
+            echo "Starting Next.js app with PM2..."
+            PORT=\$APP_PORT \$PM2_CMD start bun --name "StockThing" -- run start
+            \$PM2_CMD save || true
+            
+            sleep 5
+            
+            # Verify PM2 process is running
+            if \$PM2_CMD list | grep -q "StockThing.*online"; then
+                echo "✅ Stock Portfolio Tracker deployed successfully with PM2!"
+                \$PM2_CMD list | grep StockThing
+            else
+                echo "❌ PM2 failed to start, falling back to nohup..."
+                USE_PM2=false
+            fi
+          fi
           
-          # Save PM2 configuration
-          \$PM2_CMD save
+          # Fallback to nohup if PM2 failed or not available
+          if [ "\$USE_PM2" = false ]; then
+            echo "Starting Next.js app with nohup (simple background process)..."
+            
+            # Create logs directory
+            mkdir -p logs
+            
+            # Kill any existing process on the port
+            lsof -ti:\$APP_PORT | xargs kill -9 2>/dev/null || true
+            sleep 1
+            
+            # Start with nohup
+            nohup bun run start > logs/app.log 2>&1 &
+            APP_PID=\$!
+            echo \$APP_PID > logs/app.pid
+            
+            sleep 5
+            
+            # Verify process is running
+            if ps -p \$APP_PID > /dev/null 2>&1; then
+                echo "✅ Stock Portfolio Tracker deployed successfully with nohup!"
+                echo "📋 Process PID: \$APP_PID"
+                echo "📁 Logs: logs/app.log"
+            else
+                echo "❌ Failed to start application"
+                echo "📋 Last 20 lines of log:"
+                tail -20 logs/app.log 2>/dev/null || echo "No log file found"
+                exit 1
+            fi
+          fi
           
-          # Give it a moment to start
-          sleep 5
+          echo "📁 Working directory: \$(pwd)"
+          echo "🌐 App running on: http://0.0.0.0:\$APP_PORT"
           
-          # Verify PM2 process is running
-          if \$PM2_CMD list | grep -q "StockThing.*online"; then
-              echo "✅ Stock Portfolio Tracker deployed successfully!"
-              echo "📋 Process details:"
-              \$PM2_CMD list | grep StockThing
-              echo "📁 Working directory: \$(pwd)"
-              echo "🌐 App running on: http://0.0.0.0:\${PORT:-3000}"
-              
-              # Test if the server is responding
-              echo "🔍 Testing server response..."
-              if curl -s -o /dev/null -w "%{http_code}" http://localhost:\${PORT:-3000} | grep -q "200\|404\|500"; then
-                  echo "✅ Server is responding to requests"
-              else
-                  echo "⚠️ Server may not be responding yet (this is sometimes normal)"
-              fi
+          # Test if the server is responding
+          echo "🔍 Testing server response..."
+          sleep 2
+          if curl -s -o /dev/null -w "%{http_code}" http://localhost:\$APP_PORT | grep -q "200\|404\|500"; then
+              echo "✅ Server is responding to requests"
           else
-              echo "❌ Failed to start Stock Portfolio Tracker"
-              echo "📋 PM2 logs:"
-              \$PM2_CMD logs StockThing --lines 20 --nostream || echo "No PM2 logs found"
-              exit 1
+              echo "⚠️ Server may not be responding yet (this is sometimes normal)"
           fi
           
           EOF

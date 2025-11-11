@@ -30,10 +30,11 @@ Add the following secrets to your GitHub repository (Settings → Secrets and va
 1. **Bun** - Will be automatically installed if not present
    - The deployment script will install the latest version
    - For version consistency, ensure the same Bun version is used in CI and production
-2. **PM2** - Process manager for Node.js/Bun apps
-   - Will be automatically installed by the deployment script if not found
-   - Can be manually installed with: `npm install -g pm2`
-   - The script will ensure PM2 is in PATH before use
+2. **Process Manager** - The script will try PM2 first, fallback to nohup if PM2 fails
+   - **PM2** (preferred): Will be installed to user directory (`~/.local/bin/pm2`) if not found
+   - **nohup** (fallback): Simple background process, no installation needed
+   - PM2 provides better process management (auto-restart, monitoring, logs)
+   - nohup is simpler but requires manual process management
 
 ### Version Management
 
@@ -89,10 +90,17 @@ pm2 startup
 
 ## Monitoring
 
-- View logs: `pm2 logs StockThing`
-- Check status: `pm2 status`
-- Restart: `pm2 restart StockThing`
-- Stop: `pm2 stop StockThing`
+### If using PM2:
+- View logs: `pm2 logs StockThing` or `~/.local/bin/pm2 logs StockThing`
+- Check status: `pm2 status` or `~/.local/bin/pm2 status`
+- Restart: `pm2 restart StockThing` or `~/.local/bin/pm2 restart StockThing`
+- Stop: `pm2 stop StockThing` or `~/.local/bin/pm2 stop StockThing`
+
+### If using nohup:
+- View logs: `tail -f logs/app.log`
+- Check status: `ps -p $(cat logs/app.pid)` or `lsof -i:3000`
+- Restart: `kill $(cat logs/app.pid)` then restart manually
+- Stop: `kill $(cat logs/app.pid)` or `pkill -f "bun.*run start"`
 
 ## Troubleshooting
 
