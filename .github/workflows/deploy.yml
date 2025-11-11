@@ -237,6 +237,9 @@ jobs:
                 echo "Creating systemd service for auto-start on boot..."
                 mkdir -p \$HOME/.config/systemd/user
                 
+                APP_DIR=\$(pwd)
+                BUN_PATH=\$(command -v bun)
+                
                 cat > \$HOME/.config/systemd/user/stockthing.service << SERVICE_EOF
 [Unit]
 Description=Stock Portfolio Tracker
@@ -244,13 +247,13 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=\$(pwd)
+WorkingDirectory=\$APP_DIR
 Environment="PORT=\$APP_PORT"
-ExecStart=\$(command -v bun) run start
+ExecStart=\$BUN_PATH run start
 Restart=always
 RestartSec=10
-StandardOutput=append:\$(pwd)/logs/app.log
-StandardError=append:\$(pwd)/logs/app.log
+StandardOutput=append:\$APP_DIR/logs/app.log
+StandardError=append:\$APP_DIR/logs/app.log
 
 [Install]
 WantedBy=default.target
