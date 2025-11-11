@@ -176,11 +176,8 @@ jobs:
           
           if [ "\$USE_PM2" = true ] && [ -n "\$PM2_CMD" ]; then
             echo "Starting Next.js app with PM2 on port \$APP_PORT..."
-            # PM2 needs PORT set in the environment
-            PORT=\$APP_PORT \$PM2_CMD start bun --name "StockThing" -- run start -- --port \$APP_PORT || {
-              # Try without --port flag (Next.js reads PORT env var)
-              PORT=\$APP_PORT \$PM2_CMD start bun --name "StockThing" -- run start
-            }
+            # Next.js reads PORT from environment variable
+            PORT=\$APP_PORT \$PM2_CMD start bun --name "StockThing" -- run start
             \$PM2_CMD save || true
             
             sleep 5
