@@ -21,7 +21,7 @@ jobs:
       
       - name: Install dependencies
         working-directory: ./frontend
-        run: bun install
+        run: bun install --frozen-lockfile
         
       - name: Build Next.js app
         working-directory: ./frontend
@@ -58,7 +58,7 @@ jobs:
           # Navigate to app directory
           cd /home/${SERVER_USER}/Code/StockThing/frontend
           
-          # Install Bun if not already installed
+          # Install Bun if not already installed (use specific version for consistency)
           if ! command -v bun &> /dev/null; then
             echo "Installing Bun..."
             curl -fsSL https://bun.sh/install | bash
@@ -68,9 +68,19 @@ jobs:
           # Ensure Bun is in PATH
           export PATH="\$HOME/.bun/bin:\$PATH"
           
-          # Install dependencies
-          echo "Installing dependencies..."
-          bun install --production
+          # Verify Bun version
+          echo "Bun version: \$(bun --version)"
+          
+          # Install dependencies using lockfile for exact version matching
+          echo "Installing dependencies with frozen lockfile..."
+          bun install --frozen-lockfile --production
+          
+          # Verify lockfile exists
+          if [ ! -f "bun.lock" ]; then
+            echo "⚠️ Warning: bun.lock not found, versions may not match exactly"
+          else
+            echo "✅ Using bun.lock for exact version matching"
+          fi
           
           # Stop any existing PM2 processes
           echo "Stopping existing processes..."

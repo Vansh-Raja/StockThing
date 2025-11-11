@@ -28,10 +28,19 @@ Add the following secrets to your GitHub repository (Settings → Secrets and va
 ### Prerequisites
 
 1. **Bun** - Will be automatically installed if not present
+   - The deployment script will install the latest version
+   - For version consistency, ensure the same Bun version is used in CI and production
 2. **PM2** - Process manager for Node.js/Bun apps
    ```bash
    npm install -g pm2
    ```
+
+### Version Management
+
+The project uses `bun.lock` (similar to Python's `requirements.txt`) to ensure exact version matching:
+- **`package.json`** - Defines dependencies (like requirements.txt)
+- **`bun.lock`** - Locks exact versions (committed to repo for consistency)
+- The deployment uses `--frozen-lockfile` flag to ensure exact versions match between environments
 
 ### Server Configuration
 
