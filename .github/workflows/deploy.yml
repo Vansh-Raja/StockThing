@@ -57,10 +57,15 @@ jobs:
             plan.md AGENTS.md .github/ ${SERVER_USER}@${SERVER_HOST}:/home/${SERVER_USER}/Code/StockThing/
           
           # Deploy and start Next.js app
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ${SERVER_USER}@${SERVER_HOST} << EOF
+          # Pass PORT environment variable explicitly to SSH session
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ${SERVER_USER}@${SERVER_HOST} "PORT=${PORT:-3000} bash -s" << EOF
           
           # Navigate to app directory
           cd /home/${SERVER_USER}/Code/StockThing/frontend
+          
+          # Export PORT for this session (use provided PORT or default to 3000)
+          export PORT=\${PORT:-3000}
+          echo "🔧 Using PORT: \$PORT"
           
           # Install Bun if not already installed (use specific version for consistency)
           if ! command -v bun &> /dev/null; then
@@ -167,9 +172,15 @@ jobs:
           
           # Start Next.js app
           APP_PORT=\${PORT:-3000}
+          echo "🚀 Starting app on port: \$APP_PORT"
+          
           if [ "\$USE_PM2" = true ] && [ -n "\$PM2_CMD" ]; then
-            echo "Starting Next.js app with PM2..."
-            PORT=\$APP_PORT \$PM2_CMD start bun --name "StockThing" -- run start
+            echo "Starting Next.js app with PM2 on port \$APP_PORT..."
+            # PM2 needs PORT set in the environment
+            PORT=\$APP_PORT \$PM2_CMD start bun --name "StockThing" -- run start -- --port \$APP_PORT || {
+              # Try without --port flag (Next.js reads PORT env var)
+              PORT=\$APP_PORT \$PM2_CMD start bun --name "StockThing" -- run start
+            }
             \$PM2_CMD save || true
             
             sleep 5
@@ -195,10 +206,12 @@ jobs:
             lsof -ti:\$APP_PORT | xargs kill -9 2>/dev/null || true
             sleep 1
             
-            # Start with nohup
-            nohup bun run start > logs/app.log 2>&1 &
+            # Start with nohup (export PORT so Next.js picks it up)
+            export PORT=\$APP_PORT
+            nohup env PORT=\$APP_PORT bun run start > logs/app.log 2>&1 &
             APP_PID=\$!
             echo \$APP_PID > logs/app.pid
+            echo "Started with PID: \$APP_PID on port: \$APP_PORT"
             
             sleep 5
             
