@@ -13,6 +13,10 @@ Always refer to `AGENTS.md` for codebase-specific rules, guidelines, and convent
 3. **Never commit without explicit user permission** - Always ask before committing
 4. **Verify changes** - Always check YAML syntax, lint errors, and test before committing
 5. **Keep it simple** - Follow the minimalistic approach outlined in AGENTS.md
+6. **Update documentation** - When making significant changes to codebase, architecture, or deployment:
+   - Update `plan.md` if project structure, features, or deployment changes
+   - Update `AGENTS.md` if coding standards, conventions, or guidelines change
+   - Keep documentation in sync with actual implementation
 
 ## Project Context
 
