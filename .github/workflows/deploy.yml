@@ -88,11 +88,21 @@ jobs:
           
           # Check if Node.js/npm is available (required for PM2)
           if ! command -v npm &> /dev/null; then
-            echo "❌ npm not found. Installing Node.js..."
-            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-            sudo apt-get install -y nodejs
+            echo "⚠️ npm not found in PATH. Attempting to locate..."
+            # Try common npm locations
+            if [ -f "/usr/bin/npm" ]; then
+              export PATH="\$PATH:/usr/bin"
+            elif [ -f "/usr/local/bin/npm" ]; then
+              export PATH="\$PATH:/usr/local/bin"
+            fi
+            # Check again
+            if ! command -v npm &> /dev/null; then
+              echo "❌ npm not found. Please install Node.js/npm on the server."
+              echo "Run: curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash - && sudo apt-get install -y nodejs"
+              exit 1
+            fi
           fi
-          echo "✅ Node.js version: \$(node --version)"
+          echo "✅ Node.js version: \$(node --version 2>/dev/null || echo 'not found')"
           echo "✅ npm version: \$(npm --version)"
           
           # Install PM2 if not already installed
