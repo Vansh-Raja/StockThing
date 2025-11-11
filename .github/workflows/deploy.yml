@@ -1,0 +1,116 @@
+name: Deploy Stock Portfolio Tracker
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # This enables manual triggering
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: bun install
+        
+      - name: Build Next.js app
+        working-directory: ./frontend
+        run: bun run build
+        env:
+          NODE_ENV: production
+      
+      - name: Deploy to Oracle Cloud Server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          PORT: ${{ secrets.PORT }}
+        run: |
+          echo "$SSH_PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          
+          # Create directory on server if it doesn't exist
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ${SERVER_USER}@${SERVER_HOST} "mkdir -p /home/${SERVER_USER}/Code/StockThing"
+          
+          # Copy files to server (exclude node_modules, .next, .git)
+          rsync -avz --exclude='.git' --exclude='node_modules' --exclude='.next' --exclude='*.log' \
+            -e "ssh -o StrictHostKeyChecking=no -i private_key.pem" \
+            ./frontend/ ${SERVER_USER}@${SERVER_HOST}:/home/${SERVER_USER}/Code/StockThing/frontend/
+          
+          # Copy root files
+          rsync -avz --exclude='.git' \
+            -e "ssh -o StrictHostKeyChecking=no -i private_key.pem" \
+            plan.md AGENTS.md .github/ ${SERVER_USER}@${SERVER_HOST}:/home/${SERVER_USER}/Code/StockThing/
+          
+          # Deploy and start Next.js app
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ${SERVER_USER}@${SERVER_HOST} << EOF
+          
+          # Navigate to app directory
+          cd /home/${SERVER_USER}/Code/StockThing/frontend
+          
+          # Install Bun if not already installed
+          if ! command -v bun &> /dev/null; then
+            echo "Installing Bun..."
+            curl -fsSL https://bun.sh/install | bash
+            export PATH="\$HOME/.bun/bin:\$PATH"
+          fi
+          
+          # Ensure Bun is in PATH
+          export PATH="\$HOME/.bun/bin:\$PATH"
+          
+          # Install dependencies
+          echo "Installing dependencies..."
+          bun install --production
+          
+          # Stop any existing PM2 processes
+          echo "Stopping existing processes..."
+          pm2 stop StockThing || true
+          pm2 delete StockThing || true
+          sleep 2
+          
+          # Start Next.js app with PM2
+          echo "Starting Next.js app with PM2..."
+          PORT=\${PORT:-3000} pm2 start bun --name "StockThing" -- run start
+          
+          # Save PM2 configuration
+          pm2 save
+          
+          # Give it a moment to start
+          sleep 5
+          
+          # Verify PM2 process is running
+          if pm2 list | grep -q "StockThing.*online"; then
+              echo "✅ Stock Portfolio Tracker deployed successfully!"
+              echo "📋 Process details:"
+              pm2 list | grep StockThing
+              echo "📁 Working directory: \$(pwd)"
+              echo "🌐 App running on: http://0.0.0.0:\${PORT:-3000}"
+              
+              # Test if the server is responding
+              echo "🔍 Testing server response..."
+              if curl -s -o /dev/null -w "%{http_code}" http://localhost:\${PORT:-3000} | grep -q "200\|404\|500"; then
+                  echo "✅ Server is responding to requests"
+              else
+                  echo "⚠️ Server may not be responding yet (this is sometimes normal)"
+              fi
+          else
+              echo "❌ Failed to start Stock Portfolio Tracker"
+              echo "📋 PM2 logs:"
+              pm2 logs StockThing --lines 20 --nostream || echo "No PM2 logs found"
+              exit 1
+          fi
+          
+          EOF
+          
+          # Cleanup
+          rm -f private_key.pem
