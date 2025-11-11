@@ -82,13 +82,27 @@ jobs:
           
           # Install dependencies using lockfile for exact version matching
           echo "Installing dependencies with frozen lockfile..."
-          bun install --frozen-lockfile --production
+          bun install --frozen-lockfile
           
           # Verify lockfile exists
           if [ ! -f "bun.lock" ]; then
             echo "⚠️ Warning: bun.lock not found, versions may not match exactly"
           else
             echo "✅ Using bun.lock for exact version matching"
+          fi
+          
+          # Build the Next.js app on the server
+          echo "Building Next.js app..."
+          if [ -d ".next" ]; then
+            echo "⚠️ .next directory already exists, rebuilding..."
+            rm -rf .next
+          fi
+          NODE_ENV=production bun run build
+          if [ ! -d ".next" ]; then
+            echo "❌ Build failed - .next directory not created"
+            exit 1
+          else
+            echo "✅ Build successful"
           fi
           
           # Check if Node.js/npm is available (required for PM2)

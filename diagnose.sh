@@ -6,21 +6,46 @@ echo "🔍 Stock Portfolio Tracker Diagnostics"
 echo "======================================"
 echo ""
 
+# Detect actual user (handle sudo)
+if [ -n "$SUDO_USER" ]; then
+  ACTUAL_USER="$SUDO_USER"
+else
+  ACTUAL_USER="$(whoami)"
+fi
+
 # Get the port (default to 3000)
 PORT=${PORT:-3000}
-APP_DIR="/home/$(whoami)/Code/StockThing/frontend"
+APP_DIR="/home/$ACTUAL_USER/Code/StockThing/frontend"
+
+echo "Running as user: $ACTUAL_USER"
+echo "App directory: $APP_DIR"
+echo ""
 
 echo "1. Checking if process is running..."
 echo "-----------------------------------"
 
-# Check PM2
-if command -v pm2 > /dev/null 2>&1 || [ -f ~/.local/bin/pm2 ]; then
-  PM2_CMD=$(command -v pm2 2>/dev/null || echo "$HOME/.local/bin/pm2")
-  if $PM2_CMD list 2>/dev/null | grep -q StockThing; then
-    echo "✅ PM2 process found:"
-    $PM2_CMD list | grep StockThing
+# Check PM2 (try both current user and actual user)
+PM2_CMD=""
+if command -v pm2 > /dev/null 2>&1; then
+  PM2_CMD="pm2"
+elif [ -f "/home/$ACTUAL_USER/.local/bin/pm2" ]; then
+  PM2_CMD="/home/$ACTUAL_USER/.local/bin/pm2"
+elif [ -f "$HOME/.local/bin/pm2" ]; then
+  PM2_CMD="$HOME/.local/bin/pm2"
+fi
+
+if [ -n "$PM2_CMD" ] && $PM2_CMD list 2>/dev/null | grep -q StockThing; then
+  echo "✅ PM2 process found:"
+  $PM2_CMD list | grep StockThing
+else
+  echo "❌ PM2 process 'StockThing' not found"
+  # Check if PM2 is installed but no process
+  if [ -n "$PM2_CMD" ]; then
+    echo "   PM2 is installed at: $PM2_CMD"
+    echo "   PM2 processes:"
+    $PM2_CMD list 2>/dev/null || echo "   (No PM2 processes)"
   else
-    echo "❌ PM2 process 'StockThing' not found"
+    echo "   PM2 not found"
   fi
 fi
 
@@ -34,10 +59,12 @@ if [ -f "$APP_DIR/logs/app.pid" ]; then
   fi
 fi
 
-# Check systemd service
-if systemctl --user list-units 2>/dev/null | grep -q stockthing; then
+# Check systemd service (as actual user)
+if sudo -u "$ACTUAL_USER" systemctl --user list-units 2>/dev/null | grep -q stockthing; then
   echo "✅ Systemd service found:"
-  systemctl --user status stockthing --no-pager -l | head -10
+  sudo -u "$ACTUAL_USER" systemctl --user status stockthing --no-pager -l 2>/dev/null | head -10 || true
+else
+  echo "⚠️ Systemd service not found or not accessible"
 fi
 
 echo ""
@@ -108,24 +135,70 @@ echo ""
 echo "6. Checking application logs..."
 echo "-----------------------------------"
 if [ -f "$APP_DIR/logs/app.log" ]; then
-  echo "Last 20 lines of logs:"
-  tail -20 "$APP_DIR/logs/app.log"
+  echo "Last 30 lines of logs:"
+  tail -30 "$APP_DIR/logs/app.log"
+elif [ -f "/home/$ACTUAL_USER/Code/StockThing/frontend/logs/app.log" ]; then
+  echo "Found log at alternative location:"
+  tail -30 "/home/$ACTUAL_USER/Code/StockThing/frontend/logs/app.log"
 else
   echo "⚠️ Log file not found at $APP_DIR/logs/app.log"
+  echo "   Checking for any log files..."
+  find /home/$ACTUAL_USER/Code/StockThing -name "*.log" -type f 2>/dev/null | head -5 || echo "   No log files found"
 fi
 
 echo ""
-echo "7. Checking environment variables..."
+echo "7. Checking for running processes..."
 echo "-----------------------------------"
-cd "$APP_DIR" 2>/dev/null || echo "⚠️ Cannot cd to $APP_DIR"
-if [ -f logs/app.pid ]; then
-  APP_PID=$(cat logs/app.pid)
-  echo "Environment for PID $APP_PID:"
-  cat /proc/$APP_PID/environ 2>/dev/null | tr '\0' '\n' | grep -E "PORT|HOSTNAME" || echo "⚠️ Cannot read process environment"
+echo "Checking for bun/next processes:"
+ps aux | grep -E "bun.*start|next.*start" | grep -v grep || echo "   No bun/next processes found"
+
+echo ""
+echo "8. Checking environment variables..."
+echo "-----------------------------------"
+if [ -d "$APP_DIR" ]; then
+  cd "$APP_DIR" 2>/dev/null || echo "⚠️ Cannot cd to $APP_DIR"
+  if [ -f logs/app.pid ]; then
+    APP_PID=$(cat logs/app.pid)
+    if ps -p "$APP_PID" > /dev/null 2>&1; then
+      echo "Environment for PID $APP_PID:"
+      cat /proc/$APP_PID/environ 2>/dev/null | tr '\0' '\n' | grep -E "PORT|HOSTNAME" || echo "⚠️ Cannot read process environment"
+    else
+      echo "⚠️ PID file exists but process is dead (PID: $APP_PID)"
+    fi
+  else
+    echo "⚠️ PID file not found at $APP_DIR/logs/app.pid"
+  fi
+else
+  echo "⚠️ App directory not found: $APP_DIR"
 fi
 
 echo ""
-echo "8. Checking Oracle Cloud ingress rules..."
+echo "9. Checking if app can be started..."
+echo "-----------------------------------"
+if [ -d "$APP_DIR" ]; then
+  cd "$APP_DIR" 2>/dev/null
+  if [ -f ".next/BUILD_ID" ]; then
+    echo "✅ App is built (.next directory exists)"
+    if [ -f "package.json" ]; then
+      echo "✅ package.json found"
+      if command -v bun > /dev/null 2>&1; then
+        echo "✅ Bun is installed: $(bun --version)"
+      else
+        echo "❌ Bun not found in PATH"
+      fi
+    else
+      echo "❌ package.json not found"
+    fi
+  else
+    echo "❌ App not built (.next directory missing)"
+    echo "   Run: cd $APP_DIR && bun install && bun run build"
+  fi
+else
+  echo "❌ App directory not found: $APP_DIR"
+fi
+
+echo ""
+echo "10. Checking Oracle Cloud ingress rules..."
 echo "-----------------------------------"
 echo "⚠️ Please verify in Oracle Cloud Console:"
 echo "   - Security List → Ingress Rules"
@@ -135,4 +208,8 @@ echo "   - Protocol: TCP"
 echo ""
 echo "======================================"
 echo "Diagnostics complete!"
+echo ""
+echo "💡 If the app is not running, try:"
+echo "   cd $APP_DIR"
+echo "   PORT=$PORT bun --bun node_modules/.bin/next start -H 0.0.0.0 -p $PORT"
 
