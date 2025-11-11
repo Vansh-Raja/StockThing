@@ -131,7 +131,9 @@
 
 - Use GitHub Actions for CI/CD
 - Deploy to Oracle Cloud Ubuntu server
-- Use PM2 for process management
+- Use PM2 for process management (with nohup/systemd fallback)
+- App binds to 0.0.0.0 for external access
+- Builds on server after copying source files
 - See `DEPLOYMENT.md` for detailed deployment instructions
 
 ## Testing Considerations
@@ -171,3 +173,6 @@
 - Both views should be toggleable
 - Use expandable/collapsible rows for nested data
 - Ensure proper key props for all mapped elements
+
+# Specific instructions by user:
+- Do not commit and push to github without the users explicit permission.

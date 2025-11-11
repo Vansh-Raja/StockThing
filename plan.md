@@ -312,5 +312,6 @@ Each account row shows:
 
 - GitHub Actions workflow for automatic deployment
 - Deploys to Oracle Cloud Ubuntu server
-- Uses PM2 for process management
-- See `DEPLOYMENT.md` for detailed instructions
+- Uses PM2 or nohup/systemd for process management
+- App runs on configurable port (default 3000, can be set via PORT secret)
+- See `DEPLOYMENT.md` for detailed deployment instructions

@@ -1,0 +1,32 @@
+# Cursor Agent Rules
+
+This file configures Cursor's AI agent behavior for this codebase.
+
+## Primary Reference
+
+Always refer to `AGENTS.md` for codebase-specific rules, guidelines, and conventions.
+
+## Key Rules
+
+1. **Read AGENTS.md first** - All coding standards, conventions, and guidelines are defined there
+2. **Follow the project structure** - See `plan.md` for project overview and structure
+3. **Never commit without explicit user permission** - Always ask before committing
+4. **Verify changes** - Always check YAML syntax, lint errors, and test before committing
+5. **Keep it simple** - Follow the minimalistic approach outlined in AGENTS.md
+
+## Project Context
+
+- Next.js 16 with App Router
+- TypeScript + React 19
+- Tailwind CSS v4
+- Bun package manager
+- Deployed via GitHub Actions to Oracle Cloud
+- Uses Cloudflare Tunnel for external access (configured manually, not in deployment script)
+
+## Important Notes
+
+- Mock data structure must match SQLite schema exactly
+- Use UTC dates for consistent server/client rendering
+- Avoid Math.random() in render (causes hydration mismatches)
+- Always verify everything is correct before committing
+
