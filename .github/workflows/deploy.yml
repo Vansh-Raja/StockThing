@@ -54,7 +54,7 @@ jobs:
           # Copy root files
           rsync -avz --exclude='.git' \
             -e "ssh -o StrictHostKeyChecking=no -i private_key.pem" \
-            plan.md AGENTS.md .github/ ${SERVER_USER}@${SERVER_HOST}:/home/${SERVER_USER}/Code/StockThing/
+            plan.md AGENTS.md diagnose.sh .github/ ${SERVER_USER}@${SERVER_HOST}:/home/${SERVER_USER}/Code/StockThing/
           
           # Deploy and start Next.js app
           # Pass PORT environment variable explicitly to SSH session
@@ -333,7 +333,25 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
           
+          # Make diagnose.sh executable
+          chmod +x /home/${SERVER_USER}/Code/StockThing/diagnose.sh 2>/dev/null || true
+          
           EOF
+          
+          # Test external connectivity from GitHub Actions runner
+          echo "🔍 Testing external connectivity..."
+          APP_PORT=${PORT:-3000}
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://${SERVER_HOST}:${APP_PORT} 2>&1 || echo "000")
+          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "404" ] || [ "$HTTP_CODE" = "500" ]; then
+            echo "✅ Server is accessible externally (HTTP $HTTP_CODE)"
+          else
+            echo "❌ Server not accessible externally (HTTP $HTTP_CODE)"
+            echo "   This could be due to:"
+            echo "   - Firewall rules not configured"
+            echo "   - Oracle Cloud security list not allowing port $APP_PORT"
+            echo "   - App not binding to 0.0.0.0"
+            echo "   - App crashed after startup"
+          fi
           
           # Cleanup
           rm -f private_key.pem
