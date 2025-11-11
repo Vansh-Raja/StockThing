@@ -176,9 +176,8 @@ jobs:
           
           if [ "\$USE_PM2" = true ] && [ -n "\$PM2_CMD" ]; then
             echo "Starting Next.js app with PM2 on port \$APP_PORT..."
-            # Next.js reads PORT and HOSTNAME from environment variables
-            # HOSTNAME=0.0.0.0 makes it accessible from outside
-            HOSTNAME=0.0.0.0 PORT=\$APP_PORT \$PM2_CMD start bun --name "StockThing" -- run start
+            # Use explicit -H and -p flags to ensure Next.js binds to 0.0.0.0
+            \$PM2_CMD start bun --name "StockThing" -- --bun node_modules/.bin/next start -H 0.0.0.0 -p \$APP_PORT
             \$PM2_CMD save || true
             
             # Setup PM2 to start on boot
@@ -219,11 +218,8 @@ jobs:
             lsof -ti:\$APP_PORT | xargs kill -9 2>/dev/null || true
             sleep 1
             
-            # Start with nohup (export PORT and HOSTNAME so Next.js picks it up)
-            # HOSTNAME=0.0.0.0 makes it accessible from outside
-            export PORT=\$APP_PORT
-            export HOSTNAME=0.0.0.0
-            nohup env HOSTNAME=0.0.0.0 PORT=\$APP_PORT bun run start > logs/app.log 2>&1 &
+            # Start with nohup using explicit -H and -p flags to ensure Next.js binds to 0.0.0.0
+            nohup bun --bun node_modules/.bin/next start -H 0.0.0.0 -p \$APP_PORT > logs/app.log 2>&1 &
             APP_PID=\$!
             echo \$APP_PID > logs/app.pid
             echo "Started with PID: \$APP_PID on port: \$APP_PORT"
@@ -243,7 +239,7 @@ jobs:
                 APP_DIR=\$(pwd)
                 BUN_PATH=\$(command -v bun)
                 
-                printf '[Unit]\nDescription=Stock Portfolio Tracker\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory=%s\nEnvironment="PORT=%s"\nEnvironment="HOSTNAME=0.0.0.0"\nExecStart=%s run start\nRestart=always\nRestartSec=10\nStandardOutput=append:%s/logs/app.log\nStandardError=append:%s/logs/app.log\n\n[Install]\nWantedBy=default.target\n' "\$APP_DIR" "\$APP_PORT" "\$BUN_PATH" "\$APP_DIR" "\$APP_DIR" > \$HOME/.config/systemd/user/stockthing.service
+                printf '[Unit]\nDescription=Stock Portfolio Tracker\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory=%s\nExecStart=%s --bun node_modules/.bin/next start -H 0.0.0.0 -p %s\nRestart=always\nRestartSec=10\nStandardOutput=append:%s/logs/app.log\nStandardError=append:%s/logs/app.log\n\n[Install]\nWantedBy=default.target\n' "\$APP_DIR" "\$BUN_PATH" "\$APP_PORT" "\$APP_DIR" "\$APP_DIR" > \$HOME/.config/systemd/user/stockthing.service
                 
                 # Reload systemd and enable service
                 systemctl --user daemon-reload 2>/dev/null || true
