@@ -42,10 +42,14 @@ jobs:
           # Create directory on server if it doesn't exist
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${SERVER_USER}@${SERVER_HOST} "mkdir -p /home/${SERVER_USER}/Code/StockThing"
           
-          # Copy files to server (exclude node_modules, .next, .git)
+          # Copy files to server (exclude node_modules, .next, .git, but include bun.lock)
           rsync -avz --exclude='.git' --exclude='node_modules' --exclude='.next' --exclude='*.log' \
             -e "ssh -o StrictHostKeyChecking=no -i private_key.pem" \
             ./frontend/ ${SERVER_USER}@${SERVER_HOST}:/home/${SERVER_USER}/Code/StockThing/frontend/
+          
+          # Verify bun.lock was copied (important for version matching)
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ${SERVER_USER}@${SERVER_HOST} \
+            "test -f /home/${SERVER_USER}/Code/StockThing/frontend/bun.lock && echo '✅ bun.lock copied successfully' || echo '⚠️ Warning: bun.lock not found on server'"
           
           # Copy root files
           rsync -avz --exclude='.git' \
