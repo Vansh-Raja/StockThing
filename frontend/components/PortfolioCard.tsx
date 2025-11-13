@@ -50,7 +50,7 @@ export default function PortfolioCard({ holding }: PortfolioCardProps) {
             {formatCurrency(current_price)}
           </p>
           <p className={`text-sm font-semibold ${isDayGain ? 'text-emerald-600' : 'text-rose-600'}`}>
-            {isDayGain ? '+' : ''}{day_change_percent}%
+            {isDayGain && parseFloat(day_change_percent) > 0 ? '+' : ''}{day_change_percent}%
           </p>
         </div>
       </div>

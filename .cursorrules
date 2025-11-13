@@ -17,6 +17,11 @@ Always refer to `AGENTS.md` for codebase-specific rules, guidelines, and convent
    - Update `plan.md` if project structure, features, or deployment changes
    - Update `AGENTS.md` if coding standards, conventions, or guidelines change
    - Keep documentation in sync with actual implementation
+7. **Documentation maintenance** - After every feature commit/implementation:
+   - Update `plan.md` Implementation Status section if features are added/completed
+   - Update `AGENTS.md` if new patterns, conventions, or deployment details are introduced
+   - Update deployment-related sections if infrastructure changes
+   - Ensure both files accurately reflect the current state of the project
 
 ## Project Context
 
@@ -33,4 +38,62 @@ Always refer to `AGENTS.md` for codebase-specific rules, guidelines, and convent
 - Use UTC dates for consistent server/client rendering
 - Avoid Math.random() in render (causes hydration mismatches)
 - Always verify everything is correct before committing
+
+## Testing Workflow
+
+### Local Testing
+1. **Before implementing backend changes**: Test frontend with mock data or existing API endpoints
+2. **Start backend locally**: `cd backend && conda activate StockThing && python run.py` (runs on http://localhost:5000)
+3. **Start frontend locally**: `cd frontend && bun run dev` (runs on http://localhost:3000)
+4. **Test feature thoroughly**: 
+   - Test all user flows
+   - Test error cases
+   - Test edge cases
+   - Verify UI/UX matches design
+   - Check browser console for errors
+5. **Verify API integration**: Ensure frontend correctly calls backend endpoints
+6. **Test data persistence**: Verify data is saved correctly in database
+
+### Production Testing
+1. **After feature implementation**: Push to GitHub (with user permission)
+2. **Monitor deployment**: Watch GitHub Actions logs for successful deployment
+3. **Test on production**: Navigate to https://stockthing.vanshraja.me and test the feature
+4. **Verify production data**: Ensure feature works with real production database
+5. **Check for production-specific issues**: 
+   - HTTPS/API connectivity
+   - CORS issues
+   - Environment variable configuration
+   - Performance issues
+6. **Document any issues**: If issues found, document and fix before marking feature complete
+
+### Feature Implementation Order
+1. **Design frontend first**: Create UI components and layouts
+2. **Test frontend locally**: Verify UI works correctly (can use mock data if needed)
+3. **Implement backend**: Add API endpoints and business logic
+4. **Test full-stack locally**: Verify frontend-backend integration
+5. **Deploy and test production**: Push to production and verify end-to-end
+6. **Update documentation**: Update plan.md and AGENTS.md with new features
+
+### Commit Log Tracking
+- **Maintain COMMIT_LOG.md**: Keep a log of what is done in each commit
+- **Location**: `COMMIT_LOG.md` in the project root
+- **Format**: Each entry should include:
+  - Commit hash (short)
+  - Date
+  - Brief description of changes
+  - List of features/improvements implemented
+- **Reset on push**: After every push, update COMMIT_LOG.md with the new commit details
+- **Purpose**: Track what features/changes are included in each deployment
+
+### Deployment Pipeline (After Every Git Push)
+1. **Update documentation**: Ensure plan.md and AGENTS.md reflect all changes
+2. **Update COMMIT_LOG.md**: Add entry for the commit being pushed
+3. **Commit everything together**: Include documentation, cursor rules, and code changes in one commit
+4. **Push to GitHub**: Get explicit user permission before pushing
+5. **Monitor GitHub Actions**: Watch deployment logs for errors
+6. **Verify deployment success**: Check that both frontend and backend deploy successfully
+7. **Test on production**: Navigate to https://stockthing.vanshraja.me and test the implemented features
+8. **Verify functionality**: Ensure all new features work correctly in production environment
+9. **Check for issues**: Look for any production-specific problems (HTTPS, CORS, environment variables, etc.)
+10. **Update COMMIT_LOG.md**: After successful deployment, mark the commit as deployed
 

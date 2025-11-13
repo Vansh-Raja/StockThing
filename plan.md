@@ -1,8 +1,8 @@
-# Stock Portfolio MVP Frontend Plan
+# Stock Portfolio Tracker - Project Plan
 
 ## Project Overview
 
-Build an MVP frontend mock website for tracking Indian stock portfolios with family/group support. This is a Next.js application with SQLite-compatible mock data, focusing on UI/UX before backend integration.
+A full-stack application for tracking Indian stock portfolios with family/group support. Built with Next.js frontend and Flask backend, deployed to production with real-time stock prices from yfinance. The application supports multiple accounts, portfolio tracking, and capital gains calculation with FIFO matching.
 
 ## Project Structure
 
@@ -26,13 +26,22 @@ StockThing/
 │   │   ├── CapitalGainsPage.tsx
 │   │   └── StockSearch.tsx
 │   ├── lib/                   # Utilities and data
-│   │   ├── mockData.ts        # SQLite-compatible mock data
-│   │   ├── portfolioUtils.ts  # Portfolio calculations
-│   │   └── capitalGainsUtils.ts
+│   │   ├── api.ts            # API client for backend communication
+│   │   ├── mockData.ts        # SQLite-compatible mock data (legacy)
+│   │   ├── portfolioUtils.ts  # Portfolio calculations (legacy utilities)
+│   │   └── capitalGainsUtils.ts  # Capital gains utilities (legacy)
 │   ├── public/                # Static assets
 │   ├── package.json
-│   └── next.config.ts
-├── backend/                   # Placeholder for future Flask backend
+│   └── next.config.ts        # Next.js config with API rewrites
+├── backend/                   # Flask backend API
+│   ├── app/                  # Flask application
+│   │   ├── routes/          # API route handlers
+│   │   ├── services/        # Business logic (stock_service.py, etc.)
+│   │   ├── models.py        # SQLAlchemy models
+│   │   └── utils/           # Database utilities
+│   ├── config.py            # Configuration
+│   ├── run.py               # Application entry point
+│   └── requirements.txt     # Python dependencies
 ├── plan.md                    # Project plan document
 ├── AGENTS.md                  # Codebase rules and guidelines
 ├── DEPLOYMENT.md              # Deployment instructions
@@ -55,7 +64,7 @@ StockThing/
 **Primary entry point for the application**
 
 - **Add Share Form:**
-  - Stock search with autocomplete (mock, will use yfinance later)
+  - Stock search with autocomplete (real-time from yfinance, exact symbol match)
   - Account selector dropdown (family member + account name)
   - Quantity input (number)
   - Price per share input (number)
@@ -221,6 +230,8 @@ CREATE TABLE transactions (
 - REST API ✅
 - SQLAlchemy for ORM ✅
 - Conda virtual environment management ✅
+- Gunicorn for production deployment ✅
+- CORS configured for frontend access ✅
 
 ## Implementation Status
 
@@ -229,7 +240,7 @@ CREATE TABLE transactions (
 - Base layout with overflow handling
 - Backend Flask API with SQLite database
 - Stock search with yfinance integration (exact symbol match)
-- Transactions page with full CRUD operations
+- Transactions page with full CRUD operations (Buy and Sell)
 - Portfolio page with Scrip View and Head View (toggleable)
 - Capital Gains page with FIFO matching
 - Real-time stock prices from yfinance
@@ -239,11 +250,21 @@ CREATE TABLE transactions (
 - No horizontal overflow issues
 - Error handling and loading states
 - Current price display in stock selection
+- **Sell shares functionality** - Modal-based sell transaction from portfolio page
+- **Summary cards redesign** - Clean, balanced design with subtle left border accents and consistent spacing
+- **Backend deployment** - Flask API deployed with Gunicorn (3 workers)
+- **Frontend deployment** - Next.js app deployed with PM2/systemd
+- **HTTPS/API connectivity** - Next.js rewrites proxy `/api/*` to backend, eliminating mixed content issues
+- **Full-stack integration** - Frontend and backend fully connected and tested
+- **Production deployment** - Live at https://stockthing.vanshraja.me
 
 🔄 **Future Enhancements:**
 - Fuzzy name search for stocks (requires dedicated stock search API)
 - Stock price caching with cron jobs
 - Advanced analytics and charts
+
+💡 **Optional Features (Backend Ready, UI Pending Client Feedback):**
+- **Day change percentage** - Backend implementation complete (`get_day_change_percent()` in `stock_service.py`), can be added to UI if client requests. Calculates intraday price movement from previous day's close.
 
 ## Key Files
 
@@ -261,14 +282,17 @@ CREATE TABLE transactions (
 - `frontend/components/StockSearch.tsx` - Stock search with autocomplete
 - `frontend/components/PortfolioPage.tsx` - Portfolio page wrapper
 - `frontend/components/PortfolioTable.tsx` - Portfolio table (Scrip/Head views)
-- `frontend/components/SummaryCards.tsx` - Portfolio summary cards
+- `frontend/components/SummaryCards.tsx` - Portfolio summary cards with balanced design and subtle color accents
 - `frontend/components/AccountPill.tsx` - Account indicator pill
 - `frontend/components/CapitalGainsPage.tsx` - Capital Gains page wrapper
+- `frontend/components/SellShareModal.tsx` - Modal for selling shares from portfolio
 
 ### Utilities & Data
-- `frontend/lib/mockData.ts` - SQLite-compatible mock data
-- `frontend/lib/portfolioUtils.ts` - Portfolio aggregation and calculations
-- `frontend/lib/capitalGainsUtils.ts` - Capital gains calculations (FIFO)
+- `frontend/lib/api.ts` - API client for backend communication
+- `frontend/lib/mockData.ts` - SQLite-compatible mock data (legacy, kept for reference)
+- `frontend/lib/portfolioUtils.ts` - Portfolio aggregation and calculations (legacy utilities)
+- `frontend/lib/capitalGainsUtils.ts` - Capital gains calculations (FIFO, legacy utilities)
+- `frontend/next.config.ts` - Next.js configuration with API rewrites
 
 ## Design Principles
 
@@ -286,7 +310,7 @@ Each stock row shows:
 - Stock symbol, name, exchange
 - Total quantity across all accounts
 - Average purchase price (weighted)
-- Current market price (mock)
+- Current market price (real-time from yfinance)
 - Current total value
 - Unrealized gain/loss
 - Expandable to show account breakdown
@@ -314,12 +338,18 @@ Each account row shows:
 - Tax calculation (STCG/LTCG) - basic calculation already implemented
 - Portfolio performance charts
 - Historical portfolio value tracking
-- Sell transaction functionality (backend supports it, frontend form removed as per design)
 
 ## Deployment
 
-- GitHub Actions workflow for automatic deployment
-- Deploys to Oracle Cloud Ubuntu server
-- Uses PM2 or nohup/systemd for process management
-- App runs on configurable port (default 3000, can be set via PORT secret)
+- **GitHub Actions workflow** for automatic deployment on push to main
+- **Deploys to Oracle Cloud Ubuntu server**
+- **Frontend**: Next.js app on port 3001 (configurable via PORT secret)
+- **Backend**: Flask API with Gunicorn on port 5000 (configurable via BACKEND_PORT secret)
+- **Process Management**: PM2 for frontend (with nohup/systemd fallback), nohup for backend
+- **HTTPS Access**: Cloudflare Tunnel configured manually for external HTTPS access
+- **API Proxying**: Next.js rewrites proxy `/api/*` requests to backend (eliminates mixed content issues)
+- **Environment Variables**: 
+  - `BACKEND_URL` - Backend URL for Next.js rewrites (set during deployment)
+  - `NEXT_PUBLIC_API_URL` - Not used in production (uses relative URLs `/api`)
+  - `CORS_ORIGINS` - Comma-separated list of allowed origins
 - See `DEPLOYMENT.md` for detailed deployment instructions

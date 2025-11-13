@@ -139,9 +139,12 @@
 
 - Use GitHub Actions for CI/CD
 - Deploy to Oracle Cloud Ubuntu server
-- Use PM2 for process management (with nohup/systemd fallback)
-- App binds to 0.0.0.0 for external access
-- Builds on server after copying source files
+- **Frontend**: Next.js app on port 3001 (default), uses PM2 for process management (with nohup/systemd fallback)
+- **Backend**: Flask API with Gunicorn on port 5000 (default), uses nohup for process management
+- Both services bind to 0.0.0.0 for external access
+- Frontend builds on server after copying source files
+- Backend uses Conda environment (`StockThing`) with Python 3.12.0
+- Next.js rewrites proxy `/api/*` to backend (configured via `BACKEND_URL` env var)
 - See `DEPLOYMENT.md` for detailed deployment instructions
 
 ## Testing Considerations
@@ -162,6 +165,40 @@
 - ✅ Stock search uses exact symbol matching with capitalization normalization
 - ✅ Portfolio calculations use real-time prices
 - ✅ Capital gains use FIFO matching from backend
+
+## Production Deployment (Completed)
+
+- ✅ **Backend Deployment**: Flask API deployed with Gunicorn (3 workers) on port 5000
+- ✅ **Frontend Deployment**: Next.js app deployed with PM2/systemd on port 3001
+- ✅ **HTTPS/API Connectivity**: Next.js rewrites in `next.config.ts` proxy `/api/*` to backend
+- ✅ **Mixed Content Fix**: Frontend uses relative URLs (`/api`) which are proxied server-side
+- ✅ **Environment Configuration**: `BACKEND_URL` set during deployment for Next.js rewrites
+- ✅ **CORS Configuration**: Backend CORS includes HTTPS domain and internal IPs
+- ✅ **Full-Stack Integration**: All features tested and working in production
+- ✅ **Live Site**: https://stockthing.vanshraja.me
+
+### API Proxying Architecture
+
+The frontend uses relative URLs (`/api/*`) to avoid mixed content issues. Next.js rewrites configured in `next.config.ts` proxy these requests to the backend:
+
+```typescript
+// frontend/next.config.ts
+async rewrites() {
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:5000';
+  return [
+    {
+      source: '/api/:path*',
+      destination: `${backendUrl}/api/:path*`,
+    },
+  ];
+}
+```
+
+This ensures:
+- Browser only sees HTTPS requests (no mixed content)
+- API requests go through same domain
+- Backend accessible only via Next.js proxy (security)
+- Works seamlessly with Cloudflare Tunnel
 
 ## Git Workflow
 

@@ -1,5 +1,5 @@
 from app.models import db, Transaction, Stock, Account, Family
-from app.services.stock_service import get_current_price
+from app.services.stock_service import get_current_price, get_day_change_percent
 
 def calculate_weighted_average_price(buy_transactions):
     """Calculate weighted average purchase price"""
@@ -63,6 +63,9 @@ def get_scrip_view(family_id: int = 1):
         except Exception:
             current_price = avg_price  # Fallback to avg price if API fails
         
+        # Get day change percentage
+        day_change_percent = get_day_change_percent(stock.symbol, stock.exchange)
+        
         current_value = current_quantity * current_price
         unrealized_gain = current_value - total_invested
         unrealized_gain_percent = (unrealized_gain / total_invested * 100) if total_invested > 0 else 0
@@ -101,7 +104,7 @@ def get_scrip_view(family_id: int = 1):
             'current_value': round(current_value, 2),
             'unrealized_gain': round(unrealized_gain, 2),
             'unrealized_gain_percent': round(unrealized_gain_percent, 2),
-            'day_change_percent': '0.00'  # TODO: Calculate from historical data
+            'day_change_percent': day_change_percent
         })
     
     return holdings
@@ -150,6 +153,9 @@ def get_head_view(family_id: int = 1):
             except Exception:
                 current_price = avg_price
             
+            # Get day change percentage
+            day_change_percent = get_day_change_percent(stock.symbol, stock.exchange)
+            
             value = current_qty * current_price
             unrealized_gain = value - invested
             unrealized_gain_percent = (unrealized_gain / invested * 100) if invested > 0 else 0
@@ -166,7 +172,8 @@ def get_head_view(family_id: int = 1):
                 'total_invested': round(invested, 2),
                 'current_value': round(value, 2),
                 'unrealized_gain': round(unrealized_gain, 2),
-                'unrealized_gain_percent': round(unrealized_gain_percent, 2)
+                'unrealized_gain_percent': round(unrealized_gain_percent, 2),
+                'day_change_percent': day_change_percent
             })
             
             total_quantity += current_qty

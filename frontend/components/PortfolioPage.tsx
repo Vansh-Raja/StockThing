@@ -268,9 +268,9 @@ export default function PortfolioPage() {
 
       {/* Portfolio Table */}
       {viewMode === 'scrip' ? (
-        <PortfolioTable holdings={filteredHoldings} mode="scrip" />
+        <PortfolioTable holdings={filteredHoldings} mode="scrip" onRefresh={loadPortfolioData} />
       ) : (
-        <PortfolioTable accountHoldings={filteredAccountHoldings} mode="head" />
+        <PortfolioTable accountHoldings={filteredAccountHoldings} mode="head" onRefresh={loadPortfolioData} />
       )}
     </>
   );

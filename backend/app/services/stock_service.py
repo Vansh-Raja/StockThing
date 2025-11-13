@@ -160,3 +160,44 @@ def get_current_price(symbol: str, exchange: str) -> float:
     
     raise ValueError(f"Could not fetch price for {symbol} on {exchange}")
 
+def get_day_change_percent(symbol: str, exchange: str) -> str:
+    """
+    Calculate day change percentage (current price vs previous day's close).
+    Returns percentage as string formatted to 2 decimal places.
+    Returns '0.00' if calculation fails.
+    """
+    try:
+        yf_symbol = format_yfinance_symbol(symbol, exchange)
+        ticker = yf.Ticker(yf_symbol)
+        info = ticker.info
+        
+        # Get current price
+        current_price = None
+        if 'currentPrice' in info and info['currentPrice']:
+            current_price = float(info['currentPrice'])
+        elif 'regularMarketPrice' in info and info['regularMarketPrice']:
+            current_price = float(info['regularMarketPrice'])
+        else:
+            # Fallback to get_current_price
+            current_price = get_current_price(symbol, exchange)
+        
+        # Get previous close price
+        previous_close = None
+        if 'previousClose' in info and info['previousClose']:
+            previous_close = float(info['previousClose'])
+        else:
+            # Fallback: get from history
+            hist = ticker.history(period='2d')
+            if not hist.empty and len(hist) >= 2:
+                previous_close = float(hist['Close'].iloc[-2])
+        
+        # Calculate percentage change
+        if current_price and previous_close and previous_close > 0:
+            change_percent = ((current_price - previous_close) / previous_close) * 100
+            return f"{change_percent:.2f}"
+        
+        return "0.00"
+    except Exception:
+        # If any error occurs, return 0.00
+        return "0.00"
+
