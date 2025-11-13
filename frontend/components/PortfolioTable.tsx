@@ -321,7 +321,7 @@ export default function PortfolioTable({ holdings, accountHoldings, mode, onRefr
                         current_value: stock.current_value,
                         unrealized_gain: stock.unrealized_gain,
                         unrealized_gain_percent: stock.unrealized_gain_percent,
-                        day_change_percent: stock.day_change_percent || '0.00'
+                        day_change_percent: '0.00' // Not displayed in UI, but required by interface
                       };
                       
                       return (
