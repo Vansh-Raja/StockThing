@@ -76,7 +76,7 @@ export default function PortfolioTable({ holdings, accountHoldings, mode, onRefr
                     >
                       <td className="px-4 py-4 whitespace-nowrap">
                         <button 
-                          className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                          className="text-gray-400 hover:text-gray-600 cursor-pointer transition-all duration-200 hover:scale-110 active:scale-95"
                           onClick={() => toggleRow(holding.stock_id)}
                         >
                           {isExpanded ? '−' : '+'}
@@ -132,13 +132,13 @@ export default function PortfolioTable({ holdings, accountHoldings, mode, onRefr
                         <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={(e) => handleSellClick(e, holding)}
-                            className="px-3 py-1.5 text-xs font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-full transition-colors"
+                            className="px-3 py-1.5 text-xs font-medium text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-full transition-all duration-200 hover:shadow-md hover:shadow-rose-500/30 active:scale-95"
                             title="Sell shares"
                           >
                             Sell
                           </button>
                           <button
-                            className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-all duration-200 hover:scale-110 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                             title="More options"
                             disabled
                           >
@@ -360,13 +360,13 @@ export default function PortfolioTable({ holdings, accountHoldings, mode, onRefr
                                   setSelectedStock(stockHolding);
                                   setSellModalOpen(true);
                                 }}
-                                className="px-3 py-1.5 text-xs font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-full transition-colors"
+                                className="px-3 py-1.5 text-xs font-medium text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-full transition-all duration-200 hover:shadow-md hover:shadow-rose-500/30 active:scale-95"
                                 title="Sell shares"
                               >
                                 Sell
                               </button>
                               <button
-                                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+                                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-all duration-200 hover:scale-110 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="More options"
                                 disabled
                               >

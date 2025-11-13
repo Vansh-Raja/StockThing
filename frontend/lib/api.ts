@@ -9,16 +9,63 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
       'Content-Type': 'application/json',
       ...options.headers,
     },
+    credentials: 'include', // Include session cookies
     ...options,
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(error.error || `HTTP error! status: ${response.status}`);
+    let errorMessage = `HTTP error! status: ${response.status}`;
+    try {
+      // Clone response to read it without consuming the original
+      const clonedResponse = response.clone();
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType && contentType.includes('application/json')) {
+        const errorData = await clonedResponse.json();
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } else {
+        const text = await clonedResponse.text();
+        errorMessage = text || errorMessage;
+      }
+    } catch (e) {
+      // If all else fails, use status-based message
+      if (response.status === 401) {
+        errorMessage = 'Invalid username or password';
+      } else if (response.status === 400) {
+        errorMessage = 'Invalid request. Please check your input.';
+      } else if (response.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      }
+    }
+    throw new Error(errorMessage);
   }
 
   return response.json();
 }
+
+// Auth API
+export const authAPI = {
+  register: async (data: { username: string; email: string; password: string; family_name?: string }) => {
+    return fetchAPI('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  login: async (username: string, password: string) => {
+    return fetchAPI('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+  },
+  logout: async () => {
+    return fetchAPI('/auth/logout', {
+      method: 'POST',
+    });
+  },
+  getCurrentUser: async () => {
+    return fetchAPI('/auth/me');
+  },
+};
 
 // Stock API
 export const stockAPI = {
@@ -92,30 +139,28 @@ export const transactionAPI = {
   },
 };
 
-// Portfolio API
+// Portfolio API (family_id comes from session now)
 export const portfolioAPI = {
-  getScripView: async (familyId: number = 1) => {
-    return fetchAPI(`/portfolio/scrip-view?family_id=${familyId}`);
+  getScripView: async () => {
+    return fetchAPI('/portfolio/scrip-view');
   },
-  getHeadView: async (familyId: number = 1) => {
-    return fetchAPI(`/portfolio/head-view?family_id=${familyId}`);
+  getHeadView: async () => {
+    return fetchAPI('/portfolio/head-view');
   },
-  getSummary: async (familyId: number = 1) => {
-    return fetchAPI(`/portfolio/summary?family_id=${familyId}`);
+  getSummary: async () => {
+    return fetchAPI('/portfolio/summary');
   },
 };
 
-// Capital Gains API
+// Capital Gains API (family_id comes from session now)
 export const capitalGainsAPI = {
   getAll: async (filters?: {
-    family_id?: number;
     account_id?: number;
     stock_id?: number;
     from_date?: string;
     to_date?: string;
   }) => {
     const params = new URLSearchParams();
-    if (filters?.family_id) params.append('family_id', filters.family_id.toString());
     if (filters?.account_id) params.append('account_id', filters.account_id.toString());
     if (filters?.stock_id) params.append('stock_id', filters.stock_id.toString());
     if (filters?.from_date) params.append('from_date', filters.from_date);
@@ -124,14 +169,12 @@ export const capitalGainsAPI = {
     return fetchAPI(`/capital-gains${query ? `?${query}` : ''}`);
   },
   getSummary: async (filters?: {
-    family_id?: number;
     account_id?: number;
     stock_id?: number;
     from_date?: string;
     to_date?: string;
   }) => {
     const params = new URLSearchParams();
-    if (filters?.family_id) params.append('family_id', filters.family_id.toString());
     if (filters?.account_id) params.append('account_id', filters.account_id.toString());
     if (filters?.stock_id) params.append('stock_id', filters.stock_id.toString());
     if (filters?.from_date) params.append('from_date', filters.from_date);

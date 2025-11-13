@@ -232,6 +232,9 @@ CREATE TABLE transactions (
 - Conda virtual environment management ✅
 - Gunicorn for production deployment ✅
 - CORS configured for frontend access ✅
+- Flask-Session for session management ✅
+- Flask-Limiter for rate limiting ✅
+- Werkzeug for password hashing ✅
 
 ## Implementation Status
 
@@ -257,6 +260,9 @@ CREATE TABLE transactions (
 - **HTTPS/API connectivity** - Next.js rewrites proxy `/api/*` to backend, eliminating mixed content issues
 - **Full-stack integration** - Frontend and backend fully connected and tested
 - **Production deployment** - Live at https://stockthing.vanshraja.me
+- **Authentication system** - Session-based auth with Flask-Session, password security, rate limiting
+- **Account management** - Family-scoped accounts, share account CRUD operations
+- **UI improvements** - Password visibility toggle, password confirmation, subtle visual feedback on all buttons
 
 🔄 **Future Enhancements:**
 - Fuzzy name search for stocks (requires dedicated stock search API)
@@ -325,11 +331,47 @@ Each account row shows:
 - Unrealized gain/loss
 - Expandable to show stock breakdown
 
+## Authentication & Account Management (Implemented)
+
+### Authentication System
+- **Session-based authentication** using Flask-Session with filesystem backend
+- **Password security**: Werkzeug password hashing (PBKDF2), password strength validation (8+ chars, letters + numbers)
+- **Session security**: Secure cookies (HTTPS in production), HttpOnly, SameSite=Lax for CSRF protection
+- **Rate limiting**: Flask-Limiter configured (5 attempts/minute for auth endpoints)
+- **Input validation**: Username (3-20 chars, alphanumeric + underscore/hyphen), email format validation
+- **User enumeration prevention**: Generic error messages
+
+### Account Structure
+- **Main Account (Family Owner)**: Single authenticated account per family
+  - User registration creates a family automatically
+  - User becomes the "owner" of the family
+  - Default individual account created for the user
+- **Share Accounts**: Labels for organizing shares (not separate authentication)
+  - Created by logged-in user
+  - Types: individual, HUF, joint, trust, other
+  - Scoped to user's family (all data filtered by family_id)
+  - Can be created, updated, deleted (if no transactions exist)
+
+### Implementation Details
+- **Backend**:
+  - `/api/auth/register` - Create main account + family
+  - `/api/auth/login` - Session-based login
+  - `/api/auth/logout` - Clear session
+  - `/api/auth/me` - Get current user info
+  - All data routes protected with `@require_auth` decorator
+  - All data filtered by `family_id` from session
+- **Frontend**:
+  - `AuthContext` for global auth state management
+  - `AuthGuard` component protects routes
+  - Login/Register page at `/login`
+  - Password visibility toggle
+  - Password confirmation with matching validation
+  - Visual feedback on all UI elements
+
 ## Future Enhancements
 
 - Fuzzy name search for stocks (requires dedicated stock search API like Alpha Vantage or Financial Modeling Prep)
 - Stock price caching with cron jobs (update prices every 15 minutes)
-- User authentication and authorization
 - Advanced filtering and analytics
 - Export to PDF/Excel
 - Dark mode
@@ -338,6 +380,7 @@ Each account row shows:
 - Tax calculation (STCG/LTCG) - basic calculation already implemented
 - Portfolio performance charts
 - Historical portfolio value tracking
+- Redis session storage for scalability (currently using filesystem)
 
 ## Deployment
 

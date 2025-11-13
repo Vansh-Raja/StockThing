@@ -90,9 +90,9 @@ export default function PortfolioPage() {
     setError(null);
     try {
       const [scripData, headData, summaryData, accountsData] = await Promise.all([
-        portfolioAPI.getScripView(1),
-        portfolioAPI.getHeadView(1),
-        portfolioAPI.getSummary(1),
+        portfolioAPI.getScripView(),
+        portfolioAPI.getHeadView(),
+        portfolioAPI.getSummary(),
         accountAPI.getAll()
       ]);
 
@@ -191,20 +191,20 @@ export default function PortfolioPage() {
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setViewMode('scrip')}
-              className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+              className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 active:scale-95 ${
                 viewMode === 'scrip'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-indigo-600 text-white shadow-md hover:shadow-lg'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-sm'
               }`}
             >
               Scrip View
             </button>
             <button
               onClick={() => setViewMode('head')}
-              className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+              className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 active:scale-95 ${
                 viewMode === 'head'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-indigo-600 text-white shadow-md hover:shadow-lg'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-sm'
               }`}
             >
               Head View
@@ -213,7 +213,7 @@ export default function PortfolioPage() {
           <button
             onClick={loadPortfolioData}
             disabled={isLoading}
-            className="px-4 py-2 rounded-lg font-medium text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2 rounded-lg font-medium text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300 transition-all duration-200 hover:shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-100 disabled:hover:shadow-none flex items-center gap-2"
             title="Refresh portfolio data"
           >
             <svg

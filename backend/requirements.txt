@@ -4,4 +4,6 @@ SQLAlchemy
 yfinance
 python-dotenv
 flask-cors
+Flask-Session
+Flask-Limiter
 

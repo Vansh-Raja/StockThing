@@ -81,7 +81,7 @@ export default function CapitalGainsPage() {
       setAccounts(accountsData || []);
 
       // Load capital gains with current filters
-      const apiFilters: any = { family_id: 1 };
+      const apiFilters: any = {};
       if (filters.accountId) apiFilters.account_id = parseInt(filters.accountId);
       if (filters.stockId) apiFilters.stock_id = parseInt(filters.stockId);
       if (filters.dateFrom) apiFilters.from_date = filters.dateFrom;
@@ -216,7 +216,7 @@ export default function CapitalGainsPage() {
           <button
             onClick={loadCapitalGainsData}
             disabled={isLoading}
-            className="px-4 py-2 rounded-lg font-medium text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2 rounded-lg font-medium text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300 transition-all duration-200 hover:shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-100 disabled:hover:shadow-none flex items-center gap-2"
             title="Refresh capital gains data"
           >
             <svg
