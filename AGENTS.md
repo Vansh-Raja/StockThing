@@ -123,9 +123,17 @@
 
 ## Package Management
 
+### Frontend
 - Use Bun for package management (faster and more reliable)
 - Use `bun install` instead of `npm install`
 - Use `bun run` for scripts
+
+### Backend
+- Use Conda for Python virtual environment management
+- Create environment: `conda create -n StockThing python=3.12.0 -y`
+- Activate environment: `conda activate StockThing`
+- Install dependencies: `pip install -r backend/requirements.txt`
+- Do not specify versions in requirements.txt (let pip resolve compatible versions)
 
 ## Deployment
 
@@ -143,13 +151,17 @@
 - Use mock data for development and testing
 - Test in browser for visual verification
 
-## Future Backend Integration
+## Backend Integration (Completed)
 
-- Design API calls to match REST conventions
-- Keep API logic separate from components (use custom hooks or services)
-- Handle loading and error states consistently
-- Use consistent data structures between frontend and backend
-- Replace mock data with API calls when backend is ready
+- ✅ All API calls follow REST conventions
+- ✅ API logic separated into `lib/api.ts` client
+- ✅ Loading and error states implemented consistently
+- ✅ Data structures match between frontend and backend
+- ✅ All mock data replaced with API calls
+- ✅ Real-time stock prices from yfinance
+- ✅ Stock search uses exact symbol matching with capitalization normalization
+- ✅ Portfolio calculations use real-time prices
+- ✅ Capital gains use FIFO matching from backend
 
 ## Git Workflow
 

@@ -123,7 +123,21 @@ export function getCapitalGainsSummary(gains: CapitalGain[]) {
   };
 }
 
-export function exportToCSV(gains: CapitalGain[]) {
+// Flexible type for CSV export - only requires the fields actually used
+type CSVGain = {
+  stock?: { symbol?: string };
+  account?: { account_name?: string };
+  buy_date: string;
+  sell_date: string;
+  quantity: number;
+  buy_price: number;
+  sell_price: number;
+  capital_gain: number;
+  holding_period: number;
+  is_long_term: boolean;
+};
+
+export function exportToCSV(gains: CapitalGain[] | CSVGain[]) {
   const headers = ['Stock', 'Account', 'Buy Date', 'Sell Date', 'Quantity', 'Buy Price', 'Sell Price', 'Capital Gain', 'Holding Period', 'Type'];
   const rows = gains.map(g => [
     g.stock?.symbol || '',

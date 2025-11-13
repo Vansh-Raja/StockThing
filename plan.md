@@ -213,28 +213,37 @@ CREATE TABLE transactions (
 - **Bun** - Package manager and runtime
 - **React 19** - UI library
 
-### Future Backend (not in MVP)
+### Backend (Implemented)
 
-- Flask (Python)
-- SQLite (primary database)
-- yfinance for stock prices (Indian market: NSE/BSE)
-- REST API
-- SQLAlchemy for ORM
+- Flask (Python) ✅
+- SQLite (primary database) ✅
+- yfinance for stock prices (Indian market: NSE/BSE) ✅
+- REST API ✅
+- SQLAlchemy for ORM ✅
+- Conda virtual environment management ✅
 
 ## Implementation Status
 
 ✅ **Completed:**
 - Next.js project setup with TypeScript
 - Base layout with overflow handling
-- Mock data structure (SQLite-compatible)
-- Transactions page with stock search
+- Backend Flask API with SQLite database
+- Stock search with yfinance integration (exact symbol match)
+- Transactions page with full CRUD operations
 - Portfolio page with Scrip View and Head View (toggleable)
 - Capital Gains page with FIFO matching
+- Real-time stock prices from yfinance
+- All pages connected to backend API
+- Refresh functionality on all pages
 - Responsive design
 - No horizontal overflow issues
+- Error handling and loading states
+- Current price display in stock selection
 
-🔄 **In Progress:**
-- Backend integration (future)
+🔄 **Future Enhancements:**
+- Fuzzy name search for stocks (requires dedicated stock search API)
+- Stock price caching with cron jobs
+- Advanced analytics and charts
 
 ## Key Files
 
@@ -292,21 +301,20 @@ Each account row shows:
 - Unrealized gain/loss
 - Expandable to show stock breakdown
 
-## Future Enhancements (Post-MVP)
+## Future Enhancements
 
-- Backend integration with Flask
-- Real-time stock prices via yfinance (Indian market: NSE/BSE)
+- Fuzzy name search for stocks (requires dedicated stock search API like Alpha Vantage or Financial Modeling Prep)
+- Stock price caching with cron jobs (update prices every 15 minutes)
 - User authentication and authorization
-- SQLite database persistence
 - Advanced filtering and analytics
 - Export to PDF/Excel
 - Dark mode
 - Notifications for price alerts
 - Dividend tracking
-- Tax calculation (STCG/LTCG)
+- Tax calculation (STCG/LTCG) - basic calculation already implemented
 - Portfolio performance charts
 - Historical portfolio value tracking
-- Sell transaction functionality (currently only buy)
+- Sell transaction functionality (backend supports it, frontend form removed as per design)
 
 ## Deployment
 

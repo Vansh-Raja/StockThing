@@ -1,7 +1,31 @@
 'use client';
 
-import { mockData } from '@/lib/mockData';
-import type { Transaction, Stock, Account } from '@/lib/mockData';
+import { useState, useEffect } from 'react';
+import { transactionAPI } from '@/lib/api';
+
+interface Transaction {
+  id: number;
+  account_id: number;
+  stock_id: number;
+  transaction_type: 'buy' | 'sell';
+  quantity: number;
+  price: number;
+  transaction_date: string;
+  notes?: string;
+  created_at?: string;
+  stock?: {
+    id: number;
+    symbol: string;
+    name: string;
+    exchange: string;
+    sector?: string;
+  };
+  account?: {
+    id: number;
+    account_name: string;
+    account_type: string;
+  };
+}
 
 function formatDateTime(dateString: string): string {
   const date = new Date(dateString);
@@ -27,14 +51,55 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-export default function TransactionList() {
-  const transactions = mockData.transactions.map(t => {
-    const stock = mockData.stocks.find(s => s.id === t.stock_id);
-    const account = mockData.accounts.find(a => a.id === t.account_id);
-    return { ...t, stock, account };
-  }).sort((a, b) => 
-    new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime()
-  );
+interface TransactionListProps {
+  refreshKey?: number;
+}
+
+export default function TransactionList({ refreshKey }: TransactionListProps = { refreshKey: undefined }) {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadTransactions();
+  }, [refreshKey]); // Reload when refreshKey changes
+
+  const loadTransactions = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await transactionAPI.getAll();
+      setTransactions(data || []);
+    } catch (err: any) {
+      console.error('Error loading transactions:', err);
+      setError('Failed to load transactions');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <p className="text-gray-500 text-sm mt-4">Loading transactions...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+        <p className="text-rose-600 text-sm">{error}</p>
+        <button
+          onClick={loadTransactions}
+          className="mt-4 px-4 py-2 text-sm text-indigo-600 hover:text-indigo-700 underline"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   if (transactions.length === 0) {
     return (

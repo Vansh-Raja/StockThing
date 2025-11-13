@@ -1,15 +1,59 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { mockData } from '@/lib/mockData';
-import { calculateCapitalGains, getCapitalGainsSummary, formatDate, exportToCSV } from '@/lib/capitalGainsUtils';
+import { useState, useMemo, useEffect } from 'react';
+import { capitalGainsAPI, accountAPI, stockAPI } from '@/lib/api';
+import { formatDate, exportToCSV } from '@/lib/capitalGainsUtils';
 import { formatCurrency } from '@/lib/portfolioUtils';
-import type { CapitalGain } from '@/lib/capitalGainsUtils';
+
+interface CapitalGain {
+  id: number;
+  stock_id: number;
+  account_id: number;
+  stock?: {
+    id: number;
+    symbol: string;
+    name: string;
+  };
+  account?: {
+    id: number;
+    account_name: string;
+  };
+  buy_date: string;
+  sell_date: string;
+  quantity: number;
+  buy_price: number;
+  sell_price: number;
+  capital_gain: number;
+  capital_gain_percent: number;
+  holding_period: number;
+  is_long_term: boolean;
+}
+
+interface Account {
+  id: number;
+  account_name: string;
+  account_type: string;
+}
+
+interface Stock {
+  id: number;
+  symbol: string;
+  name: string;
+  exchange: string;
+}
+
+interface CapitalGainsSummary {
+  totalGain: number;
+  shortTermGains: number;
+  longTermGains: number;
+}
 
 export default function CapitalGainsPage() {
-  const allGains = calculateCapitalGains();
-  const accounts = mockData.accounts;
-  const stocks = mockData.stocks;
+  const [allGains, setAllGains] = useState<CapitalGain[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [stocks, setStocks] = useState<Stock[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [filters, setFilters] = useState({
     accountId: '',
@@ -18,38 +62,125 @@ export default function CapitalGainsPage() {
     dateTo: ''
   });
 
+  useEffect(() => {
+    loadCapitalGainsData();
+  }, []);
+
+  const loadCapitalGainsData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Load accounts and stocks for filters
+      const [accountsData, stocksData] = await Promise.all([
+        accountAPI.getAll(),
+        // For stocks, we'll need to get them from transactions or create a stocks endpoint
+        // For now, let's fetch from the gains data
+        Promise.resolve([])
+      ]);
+
+      setAccounts(accountsData || []);
+
+      // Load capital gains with current filters
+      const apiFilters: any = { family_id: 1 };
+      if (filters.accountId) apiFilters.account_id = parseInt(filters.accountId);
+      if (filters.stockId) apiFilters.stock_id = parseInt(filters.stockId);
+      if (filters.dateFrom) apiFilters.from_date = filters.dateFrom;
+      if (filters.dateTo) apiFilters.to_date = filters.dateTo;
+
+      const gainsData = await capitalGainsAPI.getAll(apiFilters);
+      const gains = gainsData.gains || [];
+      
+      setAllGains(gains);
+      
+      // Extract unique stocks from gains
+      const uniqueStocks = new Map<number, Stock>();
+      gains.forEach((gain: CapitalGain) => {
+        if (gain.stock && !uniqueStocks.has(gain.stock.id)) {
+          uniqueStocks.set(gain.stock.id, {
+            id: gain.stock.id,
+            symbol: gain.stock.symbol,
+            name: gain.stock.name,
+            exchange: 'NSE' // Default, could be enhanced
+          });
+        }
+      });
+      setStocks(Array.from(uniqueStocks.values()));
+    } catch (err: any) {
+      console.error('Error loading capital gains data:', err);
+      setError('Failed to load capital gains data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const round = (num: number, decimals: number) => {
+    return Math.round(num * Math.pow(10, decimals)) / Math.pow(10, decimals);
+  };
+
+  // Reload when filters change
+  useEffect(() => {
+    loadCapitalGainsData();
+  }, [filters.accountId, filters.stockId, filters.dateFrom, filters.dateTo]);
+
   const filteredGains = useMemo(() => {
-    let filtered: CapitalGain[] = [...allGains];
+    // API already filters, but we can do client-side filtering if needed
+    return allGains;
+  }, [allGains]);
 
-    if (filters.accountId) {
-      filtered = filtered.filter(g => g.account_id === parseInt(filters.accountId));
-    }
-
-    if (filters.stockId) {
-      filtered = filtered.filter(g => g.stock_id === parseInt(filters.stockId));
-    }
-
-    if (filters.dateFrom) {
-      filtered = filtered.filter(g => g.sell_date >= filters.dateFrom);
-    }
-
-    if (filters.dateTo) {
-      filtered = filtered.filter(g => g.sell_date <= filters.dateTo + 'T23:59:59');
-    }
-
-    return filtered;
-  }, [allGains, filters]);
-
-  const summary = getCapitalGainsSummary(filteredGains);
+  // Calculate summary
+  const summary: CapitalGainsSummary = useMemo(() => {
+    const totalGain = filteredGains.reduce((sum, g) => sum + g.capital_gain, 0);
+    const shortTermGains = filteredGains
+      .filter(g => !g.is_long_term)
+      .reduce((sum, g) => sum + g.capital_gain, 0);
+    const longTermGains = filteredGains
+      .filter(g => g.is_long_term)
+      .reduce((sum, g) => sum + g.capital_gain, 0);
+    
+    return {
+      totalGain: round(totalGain, 2),
+      shortTermGains: round(shortTermGains, 2),
+      longTermGains: round(longTermGains, 2)
+    };
+  }, [filteredGains]);
 
   const handleExportCSV = () => {
     exportToCSV(filteredGains);
   };
 
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <p className="text-gray-500 text-sm mt-4">Loading capital gains...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+        <p className="text-rose-600 text-sm">{error}</p>
+        <button
+          onClick={loadCapitalGainsData}
+          className="mt-4 px-4 py-2 text-sm text-indigo-600 hover:text-indigo-700 underline"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   if (allGains.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
         <p className="text-gray-400 text-sm">No capital gains data available. Sell some stocks to see capital gains.</p>
+        <button
+          onClick={loadCapitalGainsData}
+          className="mt-4 px-4 py-2 text-sm text-indigo-600 hover:text-indigo-700 underline"
+        >
+          Refresh
+        </button>
       </div>
     );
   }
@@ -80,7 +211,30 @@ export default function CapitalGainsPage() {
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-5">Filters</h3>
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
+          <button
+            onClick={loadCapitalGainsData}
+            disabled={isLoading}
+            className="px-4 py-2 rounded-lg font-medium text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            title="Refresh capital gains data"
+          >
+            <svg
+              className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            {isLoading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Account</label>

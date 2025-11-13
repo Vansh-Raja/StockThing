@@ -1,61 +1,104 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import StockSearch from './StockSearch';
+import { accountAPI, transactionAPI } from '@/lib/api';
 
 interface Stock {
+  id?: number;
   symbol: string;
   name: string;
   exchange: string;
 }
 
+interface Account {
+  id: number;
+  account_name: string;
+  account_type: string;
+}
+
 export default function TransactionForm({ onSubmit }: { onSubmit: () => void }) {
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState('');
   const [quantity, setQuantity] = useState('');
   const [price, setPrice] = useState('');
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().slice(0, 16));
   const [notes, setNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock accounts
-  const accounts = [
-    { id: 1, account_name: "Rahul", account_type: "individual" },
-    { id: 2, account_name: "Amit", account_type: "individual" },
-    { id: 3, account_name: "Amit HUF", account_type: "HUF" }
-  ];
+  // Fetch accounts from API
+  useEffect(() => {
+    accountAPI.getAll()
+      .then((data: Account[]) => {
+        setAccounts(data);
+      })
+      .catch((error) => {
+        console.error('Error fetching accounts:', error);
+        setError('Failed to load accounts');
+      });
+  }, []);
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     
-    if (!selectedStock) {
-      alert('Please select a stock');
+    if (!selectedStock || !selectedStock.id) {
+      setError('Please select a stock');
       return;
     }
 
     if (!accountId) {
-      alert('Please select an account');
+      setError('Please select an account');
       return;
     }
 
-    // Mock submission
-    console.log('Form submitted:', {
-      stock: selectedStock,
-      account_id: accountId,
-      quantity,
-      price,
-      transaction_date: transactionDate,
-      notes
-    });
-    
-    onSubmit();
-    
-    // Reset form
-    setSelectedStock(null);
-    setAccountId('');
-    setQuantity('');
-    setPrice('');
-    setTransactionDate(new Date().toISOString().slice(0, 16));
-    setNotes('');
+    if (!quantity || parseFloat(quantity) <= 0) {
+      setError('Please enter a valid quantity');
+      return;
+    }
+
+    if (!price || parseFloat(price) <= 0) {
+      setError('Please enter a valid price');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Format transaction date for API (ISO 8601)
+      const formattedDate = transactionDate 
+        ? new Date(transactionDate).toISOString()
+        : new Date().toISOString();
+
+      await transactionAPI.create({
+        account_id: parseInt(accountId),
+        stock_id: selectedStock.id,
+        quantity: parseInt(quantity),
+        price: parseFloat(price),
+        transaction_type: 'buy', // Always 'buy' since we removed sell toggle
+        transaction_date: formattedDate,
+        notes: notes || undefined
+      });
+      
+      // Reset form on success
+      setSelectedStock(null);
+      setAccountId('');
+      setQuantity('');
+      setPrice('');
+      setTransactionDate(new Date().toISOString().slice(0, 16));
+      setNotes('');
+      setError(null);
+      
+      // Notify parent component
+      onSubmit();
+    } catch (err: any) {
+      console.error('Error creating transaction:', err);
+      setError(err.message || 'Failed to add transaction. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -152,12 +195,20 @@ export default function TransactionForm({ onSubmit }: { onSubmit: () => void }) 
           />
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg">
+            <p className="text-sm text-rose-700">{error}</p>
+          </div>
+        )}
+
         {/* Submit Button */}
         <button
           type="submit"
-          className="w-full px-6 py-3 rounded-lg font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition-all duration-200 shadow-md shadow-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/40"
+          disabled={isSubmitting}
+          className="w-full px-6 py-3 rounded-lg font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition-all duration-200 shadow-md shadow-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Add Share
+          {isSubmitting ? 'Adding...' : 'Add Share'}
         </button>
       </form>
     </div>
