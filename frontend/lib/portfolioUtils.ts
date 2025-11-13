@@ -118,68 +118,70 @@ export function aggregatePortfolio(
     stockGroups[stockId].push(transaction);
   });
 
-  const holdings: PortfolioHolding[] = Object.keys(stockGroups).map(stockId => {
-    const stockTransactions = stockGroups[parseInt(stockId)];
-    const stock = stocks.find(s => s.id === parseInt(stockId));
-    if (!stock) return null;
+  const holdings: PortfolioHolding[] = Object.keys(stockGroups)
+    .map(stockId => {
+      const stockTransactions = stockGroups[parseInt(stockId)];
+      const stock = stocks.find(s => s.id === parseInt(stockId));
+      if (!stock) return null as any;
 
-    const currentQuantity = calculateCurrentQuantity(stockTransactions);
-    if (currentQuantity <= 0) return null;
+      const currentQuantity = calculateCurrentQuantity(stockTransactions);
+      if (currentQuantity <= 0) return null as any;
 
-    const buyTransactions = stockTransactions.filter(t => t.transaction_type === 'buy');
-    const avgPrice = calculateWeightedAveragePrice(buyTransactions);
-    const totalInvested = calculateTotalInvested(buyTransactions);
-    const currentPrice = currentPrices[parseInt(stockId)] || avgPrice;
-    const currentValue = currentQuantity * currentPrice;
-    const unrealizedGain = currentValue - totalInvested;
-    const unrealizedGainPercent = totalInvested > 0
-      ? (unrealizedGain / totalInvested) * 100
-      : 0;
+      const buyTransactions = stockTransactions.filter(t => t.transaction_type === 'buy');
+      const avgPrice = calculateWeightedAveragePrice(buyTransactions);
+      const totalInvested = calculateTotalInvested(buyTransactions);
+      const currentPrice = currentPrices[parseInt(stockId)] || avgPrice;
+      const currentValue = currentQuantity * currentPrice;
+      const unrealizedGain = currentValue - totalInvested;
+      const unrealizedGainPercent = totalInvested > 0
+        ? (unrealizedGain / totalInvested) * 100
+        : 0;
 
-    const accountBreakdown: Record<string, { account_id: number; account_name: string; account_type: string; quantity: number }> = {};
-    
-    stockTransactions.forEach(transaction => {
-      const account = accounts.find(a => a.id === transaction.account_id);
-      if (!account) return;
+      const accountBreakdown: Record<string, { account_id: number; account_name: string; account_type: string; quantity: number }> = {};
+      
+      stockTransactions.forEach(transaction => {
+        const account = accounts.find(a => a.id === transaction.account_id);
+        if (!account) return;
 
-      const accountKey = account.account_name;
-      if (!accountBreakdown[accountKey]) {
-        accountBreakdown[accountKey] = {
-          account_id: account.id,
-          account_name: accountKey,
-          account_type: account.account_type,
-          quantity: 0
-        };
-      }
+        const accountKey = account.account_name;
+        if (!accountBreakdown[accountKey]) {
+          accountBreakdown[accountKey] = {
+            account_id: account.id,
+            account_name: accountKey,
+            account_type: account.account_type,
+            quantity: 0
+          };
+        }
 
-      if (transaction.transaction_type === 'buy') {
-        accountBreakdown[accountKey].quantity += transaction.quantity;
-      } else {
-        accountBreakdown[accountKey].quantity -= transaction.quantity;
-      }
-    });
+        if (transaction.transaction_type === 'buy') {
+          accountBreakdown[accountKey].quantity += transaction.quantity;
+        } else {
+          accountBreakdown[accountKey].quantity -= transaction.quantity;
+        }
+      });
 
-    const validBreakdown = Object.values(accountBreakdown).filter(
-      acc => acc.quantity > 0
-    );
+      const validBreakdown = Object.values(accountBreakdown).filter(
+        acc => acc.quantity > 0
+      );
 
-    return {
-      stock_id: stock.id,
-      symbol: stock.symbol,
-      name: stock.name,
-      exchange: stock.exchange,
-      sector: stock.sector,
-      total_quantity: currentQuantity,
-      account_breakdown: validBreakdown,
-      avg_purchase_price: avgPrice,
-      current_price: currentPrice,
-      total_invested: totalInvested,
-      current_value: currentValue,
-      unrealized_gain: unrealizedGain,
-      unrealized_gain_percent: unrealizedGainPercent,
-      day_change_percent: '0.00' // Mock value - will be replaced with real data from API
-    };
-  }).filter((h): h is PortfolioHolding => h !== null);
+      return {
+        stock_id: stock.id,
+        symbol: stock.symbol,
+        name: stock.name,
+        exchange: stock.exchange,
+        sector: stock.sector,
+        total_quantity: currentQuantity,
+        account_breakdown: validBreakdown,
+        avg_purchase_price: avgPrice,
+        current_price: currentPrice,
+        total_invested: totalInvested,
+        current_value: currentValue,
+        unrealized_gain: unrealizedGain,
+        unrealized_gain_percent: unrealizedGainPercent,
+        day_change_percent: '0.00' // Mock value - will be replaced with real data from API
+      };
+    })
+    .filter((h): h is PortfolioHolding => h !== null);
 
   return holdings;
 }
