@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+      
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -22,19 +22,23 @@ jobs:
       - name: Install dependencies
         working-directory: ./frontend
         run: bun install --frozen-lockfile
-        
+      
       - name: Build Next.js app
         working-directory: ./frontend
         run: bun run build
         env:
           NODE_ENV: production
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api' }}
       
       - name: Deploy to Oracle Cloud Server
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
-          PORT: ${{ secrets.PORT }}
+          PORT: ${{ secrets.PORT || '3001' }}
+          BACKEND_PORT: ${{ secrets.BACKEND_PORT || '5000' }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY || 'dev-secret-key-change-in-production' }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS || 'http://localhost:3001' }}
         run: |
           echo "$SSH_PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
@@ -42,7 +46,14 @@ jobs:
           # Create directory on server if it doesn't exist
           ssh -o StrictHostKeyChecking=no -i private_key.pem ${SERVER_USER}@${SERVER_HOST} "mkdir -p /home/${SERVER_USER}/Code/StockThing"
           
-          # Copy files to server (exclude node_modules, .next, .git, but include bun.lock)
+          # Copy backend files to server (exclude .git, __pycache__, *.pyc, instance/)
+          echo "📦 Copying backend files..."
+          rsync -avz --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='instance' --exclude='*.log' \
+            -e "ssh -o StrictHostKeyChecking=no -i private_key.pem" \
+            ./backend/ ${SERVER_USER}@${SERVER_HOST}:/home/${SERVER_USER}/Code/StockThing/backend/
+          
+          # Copy frontend files to server (exclude node_modules, .next, .git, but include bun.lock)
+          echo "📦 Copying frontend files..."
           rsync -avz --exclude='.git' --exclude='node_modules' --exclude='.next' --exclude='*.log' \
             -e "ssh -o StrictHostKeyChecking=no -i private_key.pem" \
             ./frontend/ ${SERVER_USER}@${SERVER_HOST}:/home/${SERVER_USER}/Code/StockThing/frontend/
@@ -57,14 +68,14 @@ jobs:
             plan.md AGENTS.md diagnose.sh .github/ ${SERVER_USER}@${SERVER_HOST}:/home/${SERVER_USER}/Code/StockThing/
           
           # Deploy and start Next.js app
-          # Pass PORT environment variable explicitly to SSH session
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ${SERVER_USER}@${SERVER_HOST} "PORT=${PORT:-3000} bash -s" << EOF
+          # Pass PORT and BACKEND_PORT environment variables explicitly to SSH session
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ${SERVER_USER}@${SERVER_HOST} "PORT=${PORT:-3001} BACKEND_PORT=${BACKEND_PORT:-5000} bash -s" << EOF
           
           # Navigate to app directory
           cd /home/${SERVER_USER}/Code/StockThing/frontend
           
-          # Export PORT for this session (use provided PORT or default to 3000)
-          export PORT=\${PORT:-3000}
+          # Export PORT for this session (use provided PORT or default to 3001)
+          export PORT=\${PORT:-3001}
           echo "🔧 Using PORT: \$PORT"
           
           # Install Bun if not already installed (use specific version for consistency)
@@ -97,7 +108,10 @@ jobs:
             echo "⚠️ .next directory already exists, rebuilding..."
             rm -rf .next
           fi
-          NODE_ENV=production bun run build
+          # Set backend API URL for frontend
+          BACKEND_API_URL="http://\$(hostname -I | awk '{print \$1}'):\${BACKEND_PORT:-5000}/api"
+          NODE_ENV=production NEXT_PUBLIC_API_URL="\${BACKEND_API_URL}" bun run build
+          echo "✅ Frontend built with backend API URL: \${BACKEND_API_URL}"
           if [ ! -d ".next" ]; then
             echo "❌ Build failed - .next directory not created"
             exit 1
@@ -348,19 +362,182 @@ jobs:
           
           EOF
           
+          # Deploy Backend Flask API
+          echo "🚀 Deploying Backend Flask API..."
+          ssh -o StrictHostKeyChecking=no -i private_key.pem ${SERVER_USER}@${SERVER_HOST} << EOF
+          
+          # Navigate to backend directory
+          cd /home/${SERVER_USER}/Code/StockThing/backend
+          
+          # Find conda installation
+          if [ -f "/home/${SERVER_USER}/miniforge3/bin/conda" ]; then
+            CONDA_PATH="/home/${SERVER_USER}/miniforge3"
+          elif [ -f "/home/${SERVER_USER}/anaconda3/bin/conda" ]; then
+            CONDA_PATH="/home/${SERVER_USER}/anaconda3"
+          elif [ -f "\$HOME/miniforge3/bin/conda" ]; then
+            CONDA_PATH="\$HOME/miniforge3"
+          else
+            echo "❌ Conda not found. Please install miniforge3 or anaconda3"
+            exit 1
+          fi
+          
+          echo "✅ Found conda at: \${CONDA_PATH}"
+          
+          # Initialize conda for bash
+          eval "\$(\${CONDA_PATH}/bin/conda shell.bash hook)"
+          
+          # Create conda environment (skip if exists)
+          echo "Setting up conda environment..."
+          conda create -n StockThing python=3.12.0 -y || echo "Environment already exists, continuing..."
+          
+          # Activate environment
+          conda activate StockThing
+          
+          # Verify conda environment is active
+          if [ "\$CONDA_DEFAULT_ENV" != "StockThing" ]; then
+            echo "❌ Failed to activate StockThing environment"
+            exit 1
+          fi
+          echo "✅ Conda environment activated: \${CONDA_DEFAULT_ENV}"
+          
+          # Stop any existing backend processes
+          echo "Stopping existing backend processes..."
+          pkill -f "python.*run.py" || true
+          pkill -f "gunicorn" || true
+          sleep 3
+          pkill -9 -f "python.*run.py" || true
+          pkill -9 -f "gunicorn" || true
+          sleep 2
+          echo "Stopped existing processes"
+          
+          # Install/update requirements including gunicorn
+          echo "Installing requirements..."
+          \${CONDA_PATH}/envs/StockThing/bin/pip install -r requirements.txt
+          \${CONDA_PATH}/envs/StockThing/bin/pip install gunicorn
+          
+          # Create instance directory for database
+          mkdir -p instance
+          
+          # Set environment variables for backend
+          BACKEND_PORT=${BACKEND_PORT:-5000}
+          export BACKEND_PORT
+          export SECRET_KEY="${SECRET_KEY}"
+          export FLASK_DEBUG="False"
+          
+          # Get server IP for CORS
+          SERVER_IP=\$(hostname -I | awk '{print \$1}')
+          FRONTEND_URL="http://\${SERVER_IP}:${PORT:-3001}"
+          CORS_ORIGINS_VAL="${CORS_ORIGINS},http://localhost:3001,\${FRONTEND_URL},http://\${SERVER_IP}:${PORT:-3001}"
+          export CORS_ORIGINS="\${CORS_ORIGINS_VAL}"
+          
+          echo "✅ Environment variables set"
+          echo "   Backend PORT: \${BACKEND_PORT}"
+          echo "   CORS_ORIGINS: \${CORS_ORIGINS}"
+          
+          # Initialize database (if needed)
+          echo "Initializing database..."
+          \${CONDA_PATH}/envs/StockThing/bin/python -c "
+          import os
+          os.environ['SECRET_KEY'] = '\${SECRET_KEY}'
+          os.environ['FLASK_DEBUG'] = 'False'
+          os.environ['CORS_ORIGINS'] = '\${CORS_ORIGINS}'
+          from app import create_app
+          from app.utils.database import init_db
+          app = create_app()
+          with app.app_context():
+              init_db()
+          " || echo "Database initialization completed or already exists"
+          
+          # Start Flask app with Gunicorn using nohup
+          echo "Starting Flask API with Gunicorn..."
+          mkdir -p logs
+          
+          # Kill any existing process on the backend port
+          lsof -ti:\${BACKEND_PORT} | xargs kill -9 2>/dev/null || true
+          sleep 1
+          
+          nohup \${CONDA_PATH}/envs/StockThing/bin/gunicorn \
+            --bind 0.0.0.0:\${BACKEND_PORT} \
+            --workers 3 \
+            --timeout 120 \
+            --keep-alive 5 \
+            --max-requests 1000 \
+            --capture-output \
+            --enable-stdio-inheritance \
+            --access-logfile logs/gunicorn_access.log \
+            --error-logfile logs/gunicorn_error.log \
+            --log-level info \
+            --env SECRET_KEY="\${SECRET_KEY}" \
+            --env FLASK_DEBUG="False" \
+            --env CORS_ORIGINS="\${CORS_ORIGINS}" \
+            run:app \
+            >> logs/gunicorn.log 2>&1 &
+          
+          BACKEND_PID=\$!
+          echo \${BACKEND_PID} > logs/backend.pid
+          echo "Started backend with PID: \${BACKEND_PID} on port: \${BACKEND_PORT}"
+          
+          # Give it a moment to start
+          sleep 5
+          
+          # Verify Gunicorn is running
+          if ps -p \${BACKEND_PID} > /dev/null 2>&1; then
+              echo "✅ Flask API deployed with Gunicorn successfully!"
+              echo "📋 Process PID: \${BACKEND_PID}"
+              echo "📁 Logs: logs/gunicorn.log"
+              echo "🌐 Backend running on: http://0.0.0.0:\${BACKEND_PORT}"
+              echo "👥 Workers: 3"
+              
+              # Test if the server is responding
+              echo "🔍 Testing backend server response..."
+              HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" http://localhost:\${BACKEND_PORT}/api/accounts 2>&1 || echo "000")
+              if [ "\$HTTP_CODE" = "200" ] || [ "\$HTTP_CODE" = "404" ] || [ "\$HTTP_CODE" = "500" ]; then
+                  echo "✅ Backend server is responding to requests (HTTP \$HTTP_CODE)"
+              else
+                  echo "⚠️ Backend server may not be responding yet (HTTP \$HTTP_CODE)"
+                  echo "   Last 20 lines of logs:"
+                  tail -20 logs/gunicorn.log 2>/dev/null || echo "No log file found"
+              fi
+          else
+              echo "❌ Failed to start Flask API with Gunicorn"
+              echo "📋 Recent logs from gunicorn.log:"
+              tail -20 logs/gunicorn.log 2>/dev/null || echo "No gunicorn logs found"
+              echo "📋 Checking for any error logs:"
+              tail -10 logs/*.log 2>/dev/null || echo "No log files found"
+              exit 1
+          fi
+          
+          EOF
+          
           # Test external connectivity from GitHub Actions runner
           echo "🔍 Testing external connectivity..."
-          APP_PORT=${PORT:-3000}
+          APP_PORT=${PORT:-3001}
+          BACKEND_PORT=${BACKEND_PORT:-5000}
+          
+          # Test frontend
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://${SERVER_HOST}:${APP_PORT} 2>&1 || echo "000")
           if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "404" ] || [ "$HTTP_CODE" = "500" ]; then
-            echo "✅ Server is accessible externally (HTTP $HTTP_CODE)"
+            echo "✅ Frontend is accessible externally (HTTP $HTTP_CODE)"
           else
-            echo "❌ Server not accessible externally (HTTP $HTTP_CODE)"
+            echo "❌ Frontend not accessible externally (HTTP $HTTP_CODE)"
             echo "   This could be due to:"
             echo "   - Firewall rules not configured"
             echo "   - Oracle Cloud security list not allowing port $APP_PORT"
             echo "   - App not binding to 0.0.0.0"
             echo "   - App crashed after startup"
+          fi
+          
+          # Test backend
+          BACKEND_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 http://${SERVER_HOST}:${BACKEND_PORT}/api/accounts 2>&1 || echo "000")
+          if [ "$BACKEND_HTTP_CODE" = "200" ] || [ "$BACKEND_HTTP_CODE" = "404" ] || [ "$BACKEND_HTTP_CODE" = "500" ]; then
+            echo "✅ Backend is accessible externally (HTTP $BACKEND_HTTP_CODE)"
+          else
+            echo "❌ Backend not accessible externally (HTTP $BACKEND_HTTP_CODE)"
+            echo "   This could be due to:"
+            echo "   - Firewall rules not configured"
+            echo "   - Oracle Cloud security list not allowing port $BACKEND_PORT"
+            echo "   - Backend not binding to 0.0.0.0"
+            echo "   - Backend crashed after startup"
           fi
           
           # Cleanup
