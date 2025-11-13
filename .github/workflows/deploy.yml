@@ -39,6 +39,7 @@ jobs:
           BACKEND_PORT: ${{ secrets.BACKEND_PORT || '5000' }}
           SECRET_KEY: ${{ secrets.SECRET_KEY || 'dev-secret-key-change-in-production' }}
           CORS_ORIGINS: ${{ secrets.CORS_ORIGINS || 'http://localhost:3001' }}
+          FRONTEND_DOMAIN: ${{ secrets.FRONTEND_DOMAIN || 'https://stockthing.vanshraja.me' }}
         run: |
           echo "$SSH_PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
@@ -108,10 +109,11 @@ jobs:
             echo "⚠️ .next directory already exists, rebuilding..."
             rm -rf .next
           fi
-          # Set backend API URL for frontend
-          BACKEND_API_URL="http://\$(hostname -I | awk '{print \$1}'):\${BACKEND_PORT:-5000}/api"
-          NODE_ENV=production NEXT_PUBLIC_API_URL="\${BACKEND_API_URL}" bun run build
-          echo "✅ Frontend built with backend API URL: \${BACKEND_API_URL}"
+          # Set backend URL for Next.js rewrites (Next.js will proxy /api/* to this backend)
+          # Use relative URL in production to avoid mixed content issues
+          BACKEND_URL="http://localhost:\${BACKEND_PORT:-5000}"
+          NODE_ENV=production BACKEND_URL="\${BACKEND_URL}" bun run build
+          echo "✅ Frontend built with backend URL for rewrites: \${BACKEND_URL}"
           if [ ! -d ".next" ]; then
             echo "❌ Build failed - .next directory not created"
             exit 1
@@ -205,7 +207,8 @@ jobs:
           if [ "\$USE_PM2" = true ] && [ -n "\$PM2_CMD" ]; then
             echo "Starting Next.js app with PM2 on port \$APP_PORT..."
             # Use explicit -H and -p flags to ensure Next.js binds to 0.0.0.0
-            \$PM2_CMD start bun --name "StockThing" -- --bun node_modules/.bin/next start -H 0.0.0.0 -p \$APP_PORT
+            # Set BACKEND_URL for Next.js rewrites to proxy /api/* to backend
+            BACKEND_URL="http://localhost:\${BACKEND_PORT:-5000}" \$PM2_CMD start bun --name "StockThing" -- --bun node_modules/.bin/next start -H 0.0.0.0 -p \$APP_PORT
             \$PM2_CMD save || true
             
             # Setup PM2 to start on boot
@@ -247,7 +250,8 @@ jobs:
             sleep 1
             
             # Start with nohup using explicit -H and -p flags to ensure Next.js binds to 0.0.0.0
-            nohup bun --bun node_modules/.bin/next start -H 0.0.0.0 -p \$APP_PORT > logs/app.log 2>&1 &
+            # Set BACKEND_URL for Next.js rewrites to proxy /api/* to backend
+            BACKEND_URL="http://localhost:\${BACKEND_PORT:-5000}" nohup bun --bun node_modules/.bin/next start -H 0.0.0.0 -p \$APP_PORT > logs/app.log 2>&1 &
             APP_PID=\$!
             echo \$APP_PID > logs/app.pid
             echo "Started with PID: \$APP_PID on port: \$APP_PORT"
@@ -267,7 +271,7 @@ jobs:
                 APP_DIR=\$(pwd)
                 BUN_PATH=\$(command -v bun)
                 
-                printf '[Unit]\nDescription=Stock Portfolio Tracker\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory=%s\nExecStart=%s --bun node_modules/.bin/next start -H 0.0.0.0 -p %s\nRestart=always\nRestartSec=10\nStandardOutput=append:%s/logs/app.log\nStandardError=append:%s/logs/app.log\n\n[Install]\nWantedBy=default.target\n' "\$APP_DIR" "\$BUN_PATH" "\$APP_PORT" "\$APP_DIR" "\$APP_DIR" > \$HOME/.config/systemd/user/stockthing.service
+                printf '[Unit]\nDescription=Stock Portfolio Tracker\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory=%s\nEnvironment="BACKEND_URL=http://localhost:%s"\nExecStart=%s --bun node_modules/.bin/next start -H 0.0.0.0 -p %s\nRestart=always\nRestartSec=10\nStandardOutput=append:%s/logs/app.log\nStandardError=append:%s/logs/app.log\n\n[Install]\nWantedBy=default.target\n' "\$APP_DIR" "\${BACKEND_PORT:-5000}" "\$BUN_PATH" "\$APP_PORT" "\$APP_DIR" "\$APP_DIR" > \$HOME/.config/systemd/user/stockthing.service
                 
                 # Reload systemd and enable service
                 systemctl --user daemon-reload 2>/dev/null || true
@@ -427,7 +431,12 @@ jobs:
           # Get server IP for CORS
           SERVER_IP=\$(hostname -I | awk '{print \$1}')
           FRONTEND_URL="http://\${SERVER_IP}:${PORT:-3001}"
-          CORS_ORIGINS_VAL="${CORS_ORIGINS},http://localhost:3001,\${FRONTEND_URL},http://\${SERVER_IP}:${PORT:-3001}"
+          # Include HTTPS domain in CORS if FRONTEND_DOMAIN is set
+          if [ -n "${FRONTEND_DOMAIN}" ]; then
+            CORS_ORIGINS_VAL="${CORS_ORIGINS},http://localhost:3001,\${FRONTEND_URL},http://\${SERVER_IP}:${PORT:-3001},${FRONTEND_DOMAIN}"
+          else
+            CORS_ORIGINS_VAL="${CORS_ORIGINS},http://localhost:3001,\${FRONTEND_URL},http://\${SERVER_IP}:${PORT:-3001}"
+          fi
           export CORS_ORIGINS="\${CORS_ORIGINS_VAL}"
           
           echo "✅ Environment variables set"
