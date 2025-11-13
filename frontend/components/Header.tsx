@@ -12,6 +12,7 @@ export default function Header() {
     { path: '/', label: 'Transactions' },
     { path: '/portfolio', label: 'Portfolio' },
     { path: '/capital-gains', label: 'Capital Gains' },
+    { path: '/accounts', label: 'Accounts' },
   ];
 
   return (

@@ -15,6 +15,7 @@ A full-stack web application for tracking Indian stock market investments with f
 ### 💼 Portfolio Dashboard
 - **Scrip View**: View portfolio grouped by stock with account breakdown
 - **Head View**: View portfolio grouped by account with stock breakdown
+- **Date View**: View all purchase transactions sorted by purchase date with sort toggle
 - **Expandable Rows**: Click to expand and see detailed breakdowns
 - **Portfolio Summary Cards**:
   - Total Portfolio Value
@@ -23,8 +24,13 @@ A full-stack web application for tracking Indian stock market investments with f
   - Number of Holdings
 - **Real-time Prices**: Current market prices fetched from yfinance
 - **Unrealized Gains/Losses**: Calculated per stock and account with percentages
-- **Search & Filter**: Filter by stock symbol/name or account
+- **Search & Filter**: Filter by stock symbol/name or account with clear filters button
 - **Refresh Button**: Manual refresh to update portfolio data
+- **Smart Sell Modal**: 
+  - Pre-fills account and quantity based on context (which view/row was clicked)
+  - Pre-fills current market price automatically
+  - Transparent overlay for better background visibility
+  - Shows available shares per account
 
 ### 📈 Capital Gains Statement
 - **FIFO Matching**: Automatic matching of sell transactions with buy transactions using First-In-First-Out logic

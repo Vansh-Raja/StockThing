@@ -30,6 +30,8 @@ interface SellShareModalProps {
   onSuccess: () => void;
   stock: Stock | null;
   accountBreakdown: AccountBreakdown[];
+  prefillAccountId?: number; // Pre-fill account if provided
+  prefillQuantity?: number; // Pre-fill quantity if provided
 }
 
 export default function SellShareModal({
@@ -37,7 +39,9 @@ export default function SellShareModal({
   onClose,
   onSuccess,
   stock,
-  accountBreakdown
+  accountBreakdown,
+  prefillAccountId,
+  prefillQuantity
 }: SellShareModalProps) {
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [availableQuantity, setAvailableQuantity] = useState(0);
@@ -52,9 +56,20 @@ export default function SellShareModal({
   // Reset form when modal opens/closes or stock changes
   useEffect(() => {
     if (isOpen && stock) {
-      // Reset form
-      setSelectedAccountId('');
-      setQuantity('');
+      // Pre-fill account if provided
+      if (prefillAccountId) {
+        setSelectedAccountId(prefillAccountId.toString());
+      } else {
+        setSelectedAccountId('');
+      }
+      
+      // Pre-fill quantity if provided
+      if (prefillQuantity) {
+        setQuantity(prefillQuantity.toString());
+      } else {
+        setQuantity('');
+      }
+      
       setPrice('');
       setTransactionDate(new Date().toISOString().slice(0, 16));
       setNotes('');
@@ -82,7 +97,7 @@ export default function SellShareModal({
           });
       }
     }
-  }, [isOpen, stock]);
+  }, [isOpen, stock, prefillAccountId, prefillQuantity]);
 
   // Update available quantity when account changes
   useEffect(() => {
@@ -166,7 +181,7 @@ export default function SellShareModal({
     <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
       {/* Background overlay */}
       <div 
-        className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+        className="fixed inset-0 bg-gray-500 bg-opacity-30 transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />

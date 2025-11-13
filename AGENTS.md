@@ -218,10 +218,36 @@ This ensures:
 ## Portfolio Views
 
 - **Scrip View**: Group by stock, show account breakdown when expanded
+  - Sell button pre-fills stock when clicked from main row
+  - Sell button pre-fills stock, account, and quantity when clicked from expanded account row
 - **Head View**: Group by account, show stock breakdown when expanded
-- Both views should be toggleable
-- Use expandable/collapsible rows for nested data
+  - Sell button pre-fills stock, account, and quantity when clicked from expanded stock row
+- **Date View**: Show all purchase transactions sorted by purchase date
+  - Sort toggle (ascending/descending) for date ordering
+  - Sell button pre-fills stock, account, and quantity based on transaction row
+  - Displays remaining quantity (after any sells) instead of separate purchase/remaining columns
+- All three views are toggleable
+- Use expandable/collapsible rows for nested data (Scrip and Head views)
 - Ensure proper key props for all mapped elements
+- Actions column (Sell and More buttons) present in all views
+
+## Sell Share Modal
+
+- **Pre-filling Logic**: Modal automatically pre-fills account and quantity based on context:
+  - Scrip View main row: Pre-fills stock only
+  - Scrip View expanded account row: Pre-fills stock, account, and quantity
+  - Head View expanded stock row: Pre-fills stock, account, and quantity
+  - Date View transaction row: Pre-fills stock, account, and quantity
+- **Modal Overlay**: Use `bg-gray-500 bg-opacity-30` for transparent overlay (30% opacity)
+- **Current Price**: Automatically fetched and pre-filled from yfinance
+- **Account Selection**: Shows available shares per account in dropdown
+
+## Filtering
+
+- Search by stock symbol or name
+- Filter by account
+- Clear Filters button appears when filters are active
+- Filters apply to all portfolio views (Scrip, Head, Date)
 
 # Specific instructions by user:
 - Do not commit and push to github without the users explicit permission.

@@ -81,19 +81,30 @@ StockThing/
 
 ### 3. Portfolio/Dashboard Page (`/portfolio`)
 
-**Main portfolio view with two toggleable views**
+**Main portfolio view with three toggleable views**
 
 - **Scrip View** (default):
   - Shows all stocks grouped by symbol
   - Expandable rows showing account breakdown
-  - Columns: Stock, Quantity, Cost Rate, Cost Rs., CMP, Current Value, Profit
+  - Columns: Stock, Quantity, Cost Rate, Cost Rs., CMP, Current Value, Profit, Actions
   - Each stock row can be expanded to show account-level details
+  - Sell button pre-fills stock when clicked from main row
+  - Sell button pre-fills stock, account, and quantity when clicked from expanded account row
 
 - **Head View**:
   - Shows all accounts grouped by account holder
   - Expandable rows showing stock holdings per account
-  - Columns: Account, Quantity, Cost Rate, Cost Rs., CMP, Current Value, Profit
+  - Columns: Account, Quantity, Cost Rate, Cost Rs., CMP, Current Value, Profit, Actions
   - Each account row can be expanded to show stock-level details
+  - Sell button pre-fills stock, account, and quantity when clicked from expanded stock row
+
+- **Date View**:
+  - Shows all purchase transactions sorted by purchase date
+  - Displays individual buy transactions with their current status
+  - Columns: Purchase Date, Stock, Account, Quantity, Purchase Price, CMP, Invested, Current, Profit, Actions
+  - Sort button (ascending/descending) to toggle date order
+  - Sell button pre-fills stock, account, and quantity based on the transaction row
+  - More options button (placeholder for future features)
 
 - **Portfolio Summary Cards:**
   - Total Portfolio Value
@@ -104,7 +115,8 @@ StockThing/
 - **Filters:**
   - Search by stock symbol or name
   - Filter by account
-  - Toggle between Scrip View and Head View
+  - Clear Filters button (appears when filters are active)
+  - Toggle between Scrip View, Head View, and Date View
 
 ### 4. Capital Gains Statement Page (`/capital-gains`)
 
@@ -244,7 +256,7 @@ CREATE TABLE transactions (
 - Backend Flask API with SQLite database
 - Stock search with yfinance integration (exact symbol match)
 - Transactions page with full CRUD operations (Buy and Sell)
-- Portfolio page with Scrip View and Head View (toggleable)
+- Portfolio page with Scrip View, Head View, and Date View (toggleable)
 - Capital Gains page with FIFO matching
 - Real-time stock prices from yfinance
 - All pages connected to backend API
@@ -263,6 +275,11 @@ CREATE TABLE transactions (
 - **Authentication system** - Session-based auth with Flask-Session, password security, rate limiting
 - **Account management** - Family-scoped accounts, share account CRUD operations
 - **UI improvements** - Password visibility toggle, password confirmation, subtle visual feedback on all buttons
+- **Date View** - Purchase date-based portfolio view with ascending/descending sort toggle
+- **Smart sell modal pre-filling** - Account and quantity auto-filled based on context (Scrip/Head/Date view and row clicked)
+- **Clear filters button** - Quick filter reset when filters are active
+- **Modal overlay improvements** - Transparent overlay (30% opacity) for better background visibility
+- **Actions column** - Sell and More buttons in all portfolio views (Scrip, Head, Date)
 
 🔄 **Future Enhancements:**
 - Fuzzy name search for stocks (requires dedicated stock search API)
@@ -287,7 +304,7 @@ CREATE TABLE transactions (
 - `frontend/components/TransactionList.tsx` - Transactions table
 - `frontend/components/StockSearch.tsx` - Stock search with autocomplete
 - `frontend/components/PortfolioPage.tsx` - Portfolio page wrapper
-- `frontend/components/PortfolioTable.tsx` - Portfolio table (Scrip/Head views)
+- `frontend/components/PortfolioTable.tsx` - Portfolio table (Scrip/Head/Date views with actions column)
 - `frontend/components/SummaryCards.tsx` - Portfolio summary cards with balanced design and subtle color accents
 - `frontend/components/AccountPill.tsx` - Account indicator pill
 - `frontend/components/CapitalGainsPage.tsx` - Capital Gains page wrapper
@@ -330,6 +347,19 @@ Each account row shows:
 - Current value
 - Unrealized gain/loss
 - Expandable to show stock breakdown
+
+### Date View (Purchase Date Grouped)
+Each transaction row shows:
+- Purchase date and time
+- Stock symbol, name, exchange
+- Account name and type
+- Remaining quantity (after any sells)
+- Purchase price
+- Current market price
+- Invested value
+- Current value
+- Unrealized gain/loss
+- Sort toggle (ascending/descending by date)
 
 ## Authentication & Account Management (Implemented)
 

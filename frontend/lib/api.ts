@@ -93,6 +93,23 @@ export const accountAPI = {
   getById: async (id: number) => {
     return fetchAPI(`/accounts/${id}`);
   },
+  create: async (data: { account_name: string; account_type: string }) => {
+    return fetchAPI('/accounts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  update: async (id: number, data: { account_name?: string; account_type?: string }) => {
+    return fetchAPI(`/accounts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+  delete: async (id: number) => {
+    return fetchAPI(`/accounts/${id}`, {
+      method: 'DELETE',
+    });
+  },
 };
 
 // Transaction API
@@ -146,6 +163,9 @@ export const portfolioAPI = {
   },
   getHeadView: async () => {
     return fetchAPI('/portfolio/head-view');
+  },
+  getDateView: async () => {
+    return fetchAPI('/portfolio/date-view');
   },
   getSummary: async () => {
     return fetchAPI('/portfolio/summary');

@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app.services.portfolio_service import get_scrip_view, get_head_view, get_portfolio_summary
+from app.services.portfolio_service import get_scrip_view, get_head_view, get_date_view, get_portfolio_summary
 from app.utils.auth import require_auth, get_current_family_id
 
 portfolio_bp = Blueprint('portfolio', __name__)
@@ -29,6 +29,20 @@ def head_view():
     try:
         account_holdings = get_head_view(family_id)
         return jsonify({'account_holdings': account_holdings}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@portfolio_bp.route('/date-view', methods=['GET'])
+@require_auth
+def date_view():
+    """Get portfolio grouped by purchase date (Date View)"""
+    family_id = get_current_family_id()
+    if not family_id:
+        return jsonify({'error': 'No family associated with user'}), 400
+    
+    try:
+        date_holdings = get_date_view(family_id)
+        return jsonify({'date_holdings': date_holdings}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
