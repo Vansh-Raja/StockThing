@@ -6,7 +6,7 @@ export interface PortfolioHolding {
   symbol: string;
   name: string;
   exchange: string;
-  sector: string;
+  sector?: string;
   total_quantity: number;
   account_breakdown: Array<{
     account_id: number;
@@ -32,7 +32,7 @@ export interface AccountHolding {
     symbol: string;
     name: string;
     exchange: string;
-    sector: string;
+    sector?: string;
     quantity: number;
     avg_purchase_price: number;
     current_price: number;
@@ -217,7 +217,7 @@ export function aggregateByAccount(
       symbol: string;
       name: string;
       exchange: string;
-      sector: string;
+      sector?: string;
       quantity: number;
       avg_purchase_price: number;
       current_price: number;
